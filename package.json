@@ -1,0 +1,32 @@
+{
+    "name": "yolo11-seg",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev --webpack",
+        "build": "next build --webpack",
+        "start": "next start",
+        "lint": "eslint ."
+    },
+    "dependencies": {
+        "@techstark/opencv-js": "^4.10.0-release.1",
+        "next": "16.1.6",
+        "onnxruntime-web": "^1.21.0",
+        "react": "19.2.4",
+        "react-dom": "19.2.4"
+    },
+    "devDependencies": {
+        "@tailwindcss/postcss": "^4",
+        "@types/node": "^20",
+        "@types/react": "19.2.14",
+        "@types/react-dom": "19.2.3",
+        "eslint": "^9",
+        "eslint-config-next": "16.1.6",
+        "tailwindcss": "^4",
+        "typescript": "^5"
+    },
+    "overrides": {
+        "@types/react": "19.2.14",
+        "@types/react-dom": "19.2.3"
+    }
+}
