@@ -27,17 +27,17 @@ export function useImageProcessing() {
 
   const processImage = async (session: InferenceSession, config: Config) => {
     if (!imgRef.current || !overlayRef.current || !session) return;
-    
+
     overlayRef.current.width = imgRef.current.width;
     overlayRef.current.height = imgRef.current.height;
-    
+
     const [results, resultsInferenceTime] = await inference_pipeline(
       imgRef.current,
       session,
       config,
       overlayRef.current
     );
-    
+
     setDetails(results);
     setInferenceTime(resultsInferenceTime);
     await draw_bounding_boxes(results, overlayRef.current);
@@ -45,18 +45,18 @@ export function useImageProcessing() {
 
   const processCamera = async (session: InferenceSession, config: Config) => {
     if (!cameraRef.current || !inputCanvasRef.current || !overlayRef.current) return;
-    
+
     const inputCtx = inputCanvasRef.current.getContext("2d", { willReadFrequently: true });
     if (!inputCtx) return;
-    
+
     inputCtx.canvas.width = cameraRef.current.videoWidth;
     inputCtx.canvas.height = cameraRef.current.videoHeight;
     overlayRef.current.width = cameraRef.current.videoWidth;
     overlayRef.current.height = cameraRef.current.videoHeight;
-    
+
     const processFrame = async () => {
       if (!cameraRef.current || !cameraRef.current.srcObject) return;
-      
+
       inputCtx.drawImage(
         cameraRef.current,
         0,
@@ -64,7 +64,7 @@ export function useImageProcessing() {
         cameraRef.current.videoWidth,
         cameraRef.current.videoHeight
       );
-      
+
       if (inputCanvasRef.current && overlayRef.current && session) {
         const [results, resultsInferenceTime] = await inference_pipeline(
           inputCanvasRef.current,
@@ -76,10 +76,10 @@ export function useImageProcessing() {
         setInferenceTime(resultsInferenceTime);
         await draw_bounding_boxes(results, overlayRef.current);
       }
-      
+
       requestAnimationFrame(processFrame);
     };
-    
+
     processFrame();
   };
 
@@ -117,5 +117,6 @@ export function useImageProcessing() {
     processCamera,
     toggleImage,
     clearOverlay,
+    setImgSrc,
   };
 }
