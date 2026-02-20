@@ -91,13 +91,13 @@ export default function MediaDisplay({
           ) : (
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1 text-[11px] text-slate-500">
-                <span className="font-medium text-slate-400">Warmup</span>
-                <span className="font-bold text-teal-600">{warmUpTime}ms</span>
+                <span className="font-medium text-slate-400">Inference</span>
+                <span className="font-bold text-teal-600">{inferenceTime}ms</span>
               </div>
               <div className="w-px h-3 bg-slate-200" />
               <div className="flex items-center gap-1 text-[11px] text-slate-500">
-                <span className="font-medium text-slate-400">Inference</span>
-                <span className="font-bold text-teal-600">{inferenceTime}ms</span>
+                <span className="font-medium text-slate-400">Warmup</span>
+                <span className="font-bold text-teal-600">{warmUpTime}ms</span>
               </div>
               <div className="w-px h-3 bg-slate-200" />
               <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
