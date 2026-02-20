@@ -11,7 +11,10 @@ import { useImageProcessing } from "../hooks/useImageProcessing";
 import "../styles/styles.css";
 import { useEffect } from "react";
 
+import { useRef } from "react";
+
 export default function Home() {
+  const modelUploadRef = useRef<HTMLInputElement>(null);
   const {
     customModels,
     isModelLoaded,
@@ -100,21 +103,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-teal-100 selection:text-teal-900">
       {/* Header */}
-      <Header
-        rightSlot={
-          <SettingsModal
-            device={device}
-            setDevice={setDevice}
-            modelName={modelName}
-            setModelName={setModelName}
-            selectedDeviceId={selectedDeviceId}
-            setSelectedDeviceId={setSelectedDeviceId}
-            customModels={customModels}
-            cameras={cameras}
-            onAddModel={addModel}
-          />
-        }
-      />
+      <Header />
 
       <main className="max-w-[1600px] mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
@@ -145,11 +134,19 @@ export default function Home() {
             openImageRef={openImageRef}
             onOpenImage={openImage}
             modelName={modelName}
+            setModelName={setModelName}
             device={device}
+            setDevice={setDevice}
             isModelLoaded={isModelLoaded}
             modelStatus={modelStatus}
             warmUpTime={warmUpTime}
             inferenceTime={inferenceTime}
+            cameras={cameras}
+            selectedDeviceId={selectedDeviceId}
+            setSelectedDeviceId={setSelectedDeviceId}
+            customModels={customModels}
+            onAddModel={addModel}
+            modelUploadRef={modelUploadRef}
           />
         </section>
 
