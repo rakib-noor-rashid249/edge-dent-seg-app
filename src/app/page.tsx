@@ -109,10 +109,6 @@ export default function Home() {
         {/* Sidebar Status (Detections) */}
         <aside className="lg:col-span-4 xl:col-span-3 space-y-6 flex flex-col order-2 lg:order-1 h-[calc(100vh-120px)] sticky top-24">
           <ModelStatus
-            modelStatus={modelStatus}
-            isModelLoaded={isModelLoaded}
-            warmUpTime={warmUpTime}
-            inferenceTime={inferenceTime}
             details={details}
           />
         </aside>
@@ -133,6 +129,12 @@ export default function Home() {
             onImageToggle={toggleImage}
             openImageRef={openImageRef}
             onOpenImage={openImage}
+            modelName={modelName}
+            device={device}
+            isModelLoaded={isModelLoaded}
+            modelStatus={modelStatus}
+            warmUpTime={warmUpTime}
+            inferenceTime={inferenceTime}
           />
         </section>
 

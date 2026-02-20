@@ -6,35 +6,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 interface ModelStatusProps {
-  modelStatus: string;
-  isModelLoaded: boolean;
-  warmUpTime: string;
-  inferenceTime: string;
   details: Box[];
 }
 
-export default function ModelStatus({
-  modelStatus,
-  isModelLoaded,
-  warmUpTime,
-  inferenceTime,
-  details,
-}: ModelStatusProps) {
+export default function ModelStatus({ details }: ModelStatusProps) {
   return (
-    <Card className="w-full max-w-3xl p-6 bg-white/80 backdrop-blur-sm shadow-md border-0 h-full flex flex-col">
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex gap-4">
-          <Badge variant="outline" className="text-sm py-1 px-3 border-slate-300">
-            Warmup: <span className="text-teal-600 font-semibold ml-1">{warmUpTime}ms</span>
-          </Badge>
-          <Badge variant="outline" className="text-sm py-1 px-3 border-slate-300">
-            Inference: <span className="text-teal-600 font-semibold ml-1">{inferenceTime}ms</span>
-          </Badge>
-        </div>
-        <div className={`text-sm font-medium ${isModelLoaded ? 'text-teal-600' : 'text-amber-500 animate-pulse'}`}>
-          {modelStatus}
-        </div>
-      </div>
+    <Card className="w-full p-4 bg-white/80 backdrop-blur-sm shadow-md border-0 h-full flex flex-col">
+      <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-1">Detections</h2>
 
       <div className="flex-1 overflow-auto rounded-md border border-slate-100">
         <table className="w-full text-left text-sm">
@@ -42,7 +20,7 @@ export default function ModelStatus({
             <tr>
               <th className="p-3 font-semibold text-slate-600">#</th>
               <th className="p-3 font-semibold text-slate-600">Class</th>
-              <th className="p-3 font-semibold text-slate-600">Confidence</th>
+              <th className="p-3 font-semibold text-slate-600">Conf.</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -51,7 +29,10 @@ export default function ModelStatus({
                 <td className="p-3 text-slate-500">{index + 1}</td>
                 <td className="p-3 font-medium text-slate-700">{classes[item.class_idx]}</td>
                 <td className="p-3">
-                  <Badge variant={item.score > 0.8 ? "default" : "secondary"} className={item.score > 0.8 ? "bg-teal-500 hover:bg-teal-600" : ""}>
+                  <Badge
+                    variant={item.score > 0.8 ? "default" : "secondary"}
+                    className={item.score > 0.8 ? "bg-teal-500 hover:bg-teal-600" : ""}
+                  >
                     {(item.score * 100).toFixed(1)}%
                   </Badge>
                 </td>
