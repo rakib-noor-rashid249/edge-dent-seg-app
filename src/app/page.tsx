@@ -4,6 +4,7 @@ import { useState } from "react";
 import SettingsModal from "../components/SettingsModal";
 import MediaDisplay from "../components/MediaDisplay";
 import ModelStatus from "../components/ModelStatus";
+import Header from "../components/Header";
 import { useYoloModel } from "../hooks/useYoloModel";
 import { useCamera } from "../hooks/useCamera";
 import { useImageProcessing } from "../hooks/useImageProcessing";
@@ -98,23 +99,20 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-teal-100 selection:text-teal-900">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 px-6 py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">D</div>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Edge Dent Seg <span className="text-slate-400 font-normal text-sm ml-2">Clinical Suite</span></h1>
-        </div>
-
-        <SettingsModal
-          device={device}
-          setDevice={setDevice}
-          modelName={modelName}
-          setModelName={setModelName}
-          cameraSelectorRef={cameraSelectorRef}
-          customModels={customModels}
-          cameras={cameras}
-          onAddModel={addModel}
-        />
-      </header>
+      <Header
+        rightSlot={
+          <SettingsModal
+            device={device}
+            setDevice={setDevice}
+            modelName={modelName}
+            setModelName={setModelName}
+            cameraSelectorRef={cameraSelectorRef}
+            customModels={customModels}
+            cameras={cameras}
+            onAddModel={addModel}
+          />
+        }
+      />
 
       <main className="max-w-[1600px] mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
