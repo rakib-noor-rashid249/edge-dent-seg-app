@@ -5,7 +5,18 @@ import { useEffect, useState, useCallback } from "react";
 export function useCamera() {
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("selectedDeviceId") || "";
+    }
+    return "";
+  });
+
+  useEffect(() => {
+    if (selectedDeviceId) {
+      localStorage.setItem("selectedDeviceId", selectedDeviceId);
+    }
+  }, [selectedDeviceId]);
 
   const stopCamera = useCallback(() => {
     if (cameraStream) {
@@ -35,9 +46,8 @@ export function useCamera() {
   useEffect(() => {
     const getCameras = async () => {
       try {
-        // Request initial permission to get labels
-        const initialStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        initialStream.getTracks().forEach(t => t.stop());
+        // Removed initial permission request to get labels on mount
+        // This will be handled when the user clicks "Open Camera"
 
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter((device) => device.kind === "videoinput");

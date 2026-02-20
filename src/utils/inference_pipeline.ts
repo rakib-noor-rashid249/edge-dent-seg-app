@@ -1,6 +1,6 @@
 import * as ort from 'onnxruntime-web';
 import cv from '@techstark/opencv-js';
-import { preProcess_dynamic, applyNMS, Colors } from "./img_preprocess";
+import { preProcess, applyNMS, Colors } from "./img_preprocess";
 import { Box } from "./types";
 import classes from "./yolo_classes.json";
 
@@ -26,17 +26,18 @@ export async function inference_pipeline(
 ): Promise<[Box[], string]> {
   const src_mat = cv.imread(input_el);
 
-  // Pre-process input image
-  const [src_mat_preProcessed, div_width, div_height] = preProcess_dynamic(src_mat);
-  const xRatio = src_mat.cols / div_width;
-  const yRatio = src_mat.rows / div_height;
+  const input_width = config.input_shape[3];
+  const input_height = config.input_shape[2];
+
+  // Pre-process input image using fixed size
+  const [src_mat_preProcessed, xRatio, yRatio] = preProcess(src_mat, input_width, input_height);
   src_mat.delete();
 
   const input_tensor = new ort.Tensor("float32", src_mat_preProcessed.data32F, [
     1,
     3,
-    div_height,
-    div_width,
+    input_height,
+    input_width,
   ]);
   src_mat_preProcessed.delete();
 
@@ -52,7 +53,7 @@ export async function inference_pipeline(
     console.error("Invalid model output");
     return [[], "0"];
   }
-  
+
   const NUM_PREDICTIONS = output0.dims[2];
   const NUM_BBOX_ATTRS = 4;
   const NUM_SCORES = classes.length; // 80

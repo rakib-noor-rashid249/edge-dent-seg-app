@@ -6,8 +6,8 @@ import { model_loader } from "../utils/model_loader";
 import { CustomModel } from "../utils/types";
 
 const input_shape = [1, 3, 640, 640];
-const iou_threshold = 0.35;
-const score_threshold = 0.45;
+const iou_threshold = 0.25;
+const score_threshold = 0.55;
 const config = { input_shape, iou_threshold, score_threshold };
 
 export function useYoloModel() {
