@@ -186,8 +186,8 @@ export default function AboutPage() {
                         {/* Stats card */}
                         <div className="flex-shrink-0 grid grid-cols-2 gap-3 w-full md:w-auto">
                             {[
-                                { val: "4+", label: "Model Variants" },
-                                { val: "3", label: "Backends" },
+                                { val: "2", label: "Model Variants" },
+                                { val: "2", label: "Hardware Backends" },
                                 { val: "0", label: "Server Uploads" },
                                 { val: "100%", label: "Private" },
                             ].map((s) => (
