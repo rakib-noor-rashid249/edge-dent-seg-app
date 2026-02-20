@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useState } from "react";
 import SettingsModal from "../components/SettingsModal";
 import MediaDisplay from "../components/MediaDisplay";
 import ModelStatus from "../components/ModelStatus";
@@ -8,6 +8,7 @@ import { useYoloModel } from "../hooks/useYoloModel";
 import { useCamera } from "../hooks/useCamera";
 import { useImageProcessing } from "../hooks/useImageProcessing";
 import "../styles/styles.css";
+import { useEffect } from "react";
 
 export default function Home() {
   const {
@@ -43,18 +44,24 @@ export default function Home() {
     openImage,
     processImage,
     processCamera,
+    redrawOverlay,
+    saveResult,
     toggleImage,
     clearOverlay,
     setImgSrc,
   } = useImageProcessing();
 
+  const [selectedDetectionIdx, setSelectedDetectionIdx] = useState<number | null>(null);
+
   const handleImageLoad = () => {
+    setSelectedDetectionIdx(null);
     if (sessionRef.current) {
       processImage(sessionRef.current, config);
     }
   };
 
   const handleCameraLoad = () => {
+    setSelectedDetectionIdx(null);
     if (sessionRef.current) {
       processCamera(sessionRef.current, config);
     }
@@ -65,6 +72,11 @@ export default function Home() {
       clearOverlay();
     }
     toggleCamera();
+  };
+
+  const handleSelectDetection = (idx: number | null) => {
+    setSelectedDetectionIdx(idx);
+    redrawOverlay(details, idx);
   };
 
   // Cleanup camera stream when component unmounts
@@ -110,6 +122,9 @@ export default function Home() {
         <aside className="lg:col-span-4 xl:col-span-3 space-y-6 flex flex-col order-2 lg:order-1 h-[calc(100vh-120px)] sticky top-24">
           <ModelStatus
             details={details}
+            selectedDetectionIdx={selectedDetectionIdx}
+            onSelectDetection={handleSelectDetection}
+            onSave={saveResult}
           />
         </aside>
 

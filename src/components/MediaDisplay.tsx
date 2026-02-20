@@ -67,8 +67,8 @@ export default function MediaDisplay({
           <div className="flex items-center gap-2 px-2.5 py-1 bg-slate-50 rounded-full border border-slate-200">
             <div
               className={`w-2 h-2 rounded-full transition-all duration-500 ${isModelLoaded
-                  ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.7)]"
-                  : "bg-amber-400 animate-pulse"
+                ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.7)]"
+                : "bg-amber-400 animate-pulse"
                 }`}
             />
             <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{device}</span>
@@ -81,7 +81,7 @@ export default function MediaDisplay({
           </div>
         </div>
 
-        {/* Right side: loading OR perf metrics */}
+        {/* Right side: loading OR perf metrics + save */}
         <div className="flex items-center gap-3">
           {!isModelLoaded ? (
             <div className="flex items-center gap-2 text-amber-600">

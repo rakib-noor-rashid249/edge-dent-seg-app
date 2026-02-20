@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { InferenceSession, Config } from "onnxruntime-web";
+import { useState, useRef, useCallback } from "react";
+import { InferenceSession } from "onnxruntime-web";
 import { inference_pipeline } from "../utils/inference_pipeline";
 import { draw_bounding_boxes } from "../utils/draw_bounding_boxes";
 import { Box } from "../utils/types";
+
+interface Config {
+  input_shape: number[];
+  iou_threshold: number;
+  score_threshold: number;
+}
 
 export function useImageProcessing() {
   const [imgSrc, setImgSrc] = useState<string | null>(null);
@@ -15,6 +21,8 @@ export function useImageProcessing() {
   const cameraRef = useRef<HTMLVideoElement>(null);
   const inputCanvasRef = useRef<HTMLCanvasElement>(null);
   const openImageRef = useRef<HTMLInputElement>(null);
+  // Snapshot of the mask-only canvas state (after inference, before bounding boxes)
+  const maskSnapshotRef = useRef<ImageData | null>(null);
 
   const openImage = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -37,6 +45,12 @@ export function useImageProcessing() {
       config,
       overlayRef.current
     );
+
+    // Snapshot the mask state so filter redraws can restore it
+    const ctx = overlayRef.current.getContext("2d");
+    if (ctx) {
+      maskSnapshotRef.current = ctx.getImageData(0, 0, overlayRef.current.width, overlayRef.current.height);
+    }
 
     setDetails(results);
     setInferenceTime(resultsInferenceTime);
@@ -72,6 +86,13 @@ export function useImageProcessing() {
           config,
           overlayRef.current
         );
+
+        // Snapshot mask state for each new camera frame
+        const ctx = overlayRef.current.getContext("2d");
+        if (ctx) {
+          maskSnapshotRef.current = ctx.getImageData(0, 0, overlayRef.current.width, overlayRef.current.height);
+        }
+
         setDetails(results);
         setInferenceTime(resultsInferenceTime);
         await draw_bounding_boxes(results, overlayRef.current);
@@ -83,11 +104,61 @@ export function useImageProcessing() {
     processFrame();
   };
 
+  /**
+   * Re-draw overlay: restore mask snapshot then draw filtered boxes.
+   * Call this when user selects/deselects a detection filter.
+   */
+  const redrawOverlay = useCallback(async (boxes: Box[], filterIndex: number | null) => {
+    if (!overlayRef.current) return;
+    const ctx = overlayRef.current.getContext("2d");
+    if (!ctx) return;
+
+    // Restore the mask-only snapshot first
+    if (maskSnapshotRef.current) {
+      ctx.putImageData(maskSnapshotRef.current, 0, 0);
+    } else {
+      ctx.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height);
+    }
+
+    await draw_bounding_boxes(boxes, overlayRef.current, filterIndex);
+  }, []);
+
+  /** Composite source image + overlay canvas and download as PNG. */
+  const saveResult = useCallback(() => {
+    const sourceEl: HTMLImageElement | HTMLVideoElement | null =
+      imgRef.current ?? cameraRef.current;
+    if (!sourceEl || !overlayRef.current) return;
+
+    const w = overlayRef.current.width ||
+      (sourceEl as HTMLImageElement).naturalWidth ||
+      (sourceEl as HTMLVideoElement).videoWidth;
+    const h = overlayRef.current.height ||
+      (sourceEl as HTMLImageElement).naturalHeight ||
+      (sourceEl as HTMLVideoElement).videoHeight;
+
+    const offscreen = document.createElement("canvas");
+    offscreen.width = w;
+    offscreen.height = h;
+    const ctx = offscreen.getContext("2d");
+    if (!ctx) return;
+
+    ctx.drawImage(sourceEl, 0, 0, w, h);
+    ctx.drawImage(overlayRef.current, 0, 0, w, h);
+
+    const dataUrl = offscreen.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `inference-result-${Date.now()}.png`;
+    a.click();
+  }, []);
+
   const toggleImage = () => {
     if (!imgSrc) {
       openImageRef.current?.click();
     } else {
+      maskSnapshotRef.current = null;
       setImgSrc(null);
+      setDetails([]);
       if (openImageRef.current) openImageRef.current.disabled = false;
       if (overlayRef.current) {
         overlayRef.current.width = 0;
@@ -97,6 +168,7 @@ export function useImageProcessing() {
   };
 
   const clearOverlay = () => {
+    maskSnapshotRef.current = null;
     if (overlayRef.current) {
       overlayRef.current.width = 0;
       overlayRef.current.height = 0;
@@ -115,6 +187,8 @@ export function useImageProcessing() {
     openImage,
     processImage,
     processCamera,
+    redrawOverlay,
+    saveResult,
     toggleImage,
     clearOverlay,
     setImgSrc,
