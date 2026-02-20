@@ -10,7 +10,8 @@ interface ModelSettingsProps {
     setDevice: (val: string) => void;
     modelName: string;
     setModelName: (val: string) => void;
-    cameraSelectorRef: React.RefObject<HTMLSelectElement | null>;
+    selectedDeviceId: string;
+    setSelectedDeviceId: (val: string) => void;
     customModels: CustomModel[];
     cameras: MediaDeviceInfo[];
 }
@@ -20,7 +21,8 @@ export default function ModelSettings({
     setDevice,
     modelName,
     setModelName,
-    cameraSelectorRef,
+    selectedDeviceId,
+    setSelectedDeviceId,
     customModels,
     cameras,
 }: ModelSettingsProps) {
@@ -31,7 +33,6 @@ export default function ModelSettings({
                     <Label htmlFor="device-selector" className="text-slate-600 font-medium">Processing Unit</Label>
                     <Select onValueChange={(val) => {
                         setDevice(val);
-                        // onLoadModel(); // Handled by useEffect in hook
                     }} value={device}>
                         <SelectTrigger className="w-full bg-white border-slate-200">
                             <SelectValue placeholder="Select Backend" />
@@ -47,7 +48,6 @@ export default function ModelSettings({
                     <Label htmlFor="model-selector" className="text-slate-600 font-medium">AI Model</Label>
                     <Select onValueChange={(val) => {
                         setModelName(val);
-                        // onLoadModel(); // Handled by useEffect in hook
                     }} value={modelName}>
                         <SelectTrigger className="w-full bg-white border-slate-200">
                             <SelectValue placeholder="Select Model" />
@@ -67,10 +67,8 @@ export default function ModelSettings({
                 <div className="flex flex-col gap-2 min-w-[200px]">
                     <Label htmlFor="camera-selector" className="text-slate-600 font-medium">Camera Source</Label>
                     <Select onValueChange={(val) => {
-                        if (cameraSelectorRef.current) {
-                            cameraSelectorRef.current.value = val;
-                        }
-                    }}>
+                        setSelectedDeviceId(val);
+                    }} value={selectedDeviceId}>
                         <SelectTrigger className="w-full bg-white border-slate-200">
                             <SelectValue placeholder="Select Camera" />
                         </SelectTrigger>
@@ -82,13 +80,6 @@ export default function ModelSettings({
                             ))}
                         </SelectContent>
                     </Select>
-                    <select ref={cameraSelectorRef} className="hidden">
-                        {cameras.map((camera, index) => (
-                            <option key={index} value={camera.deviceId}>
-                                {camera.label || `Camera ${index + 1}`}
-                            </option>
-                        ))}
-                    </select>
                 </div>
             </div>
         </Card>

@@ -29,7 +29,8 @@ export default function Home() {
   const {
     cameras,
     cameraStream,
-    cameraSelectorRef,
+    selectedDeviceId,
+    setSelectedDeviceId,
     toggleCamera,
   } = useCamera();
 
@@ -106,7 +107,8 @@ export default function Home() {
             setDevice={setDevice}
             modelName={modelName}
             setModelName={setModelName}
-            cameraSelectorRef={cameraSelectorRef}
+            selectedDeviceId={selectedDeviceId}
+            setSelectedDeviceId={setSelectedDeviceId}
             customModels={customModels}
             cameras={cameras}
             onAddModel={addModel}

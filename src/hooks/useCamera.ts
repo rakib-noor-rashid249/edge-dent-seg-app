@@ -1,22 +1,30 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 export function useCamera() {
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const cameraSelectorRef = useRef<HTMLSelectElement>(null);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
 
-  const toggleCamera = async () => {
+  const stopCamera = useCallback(() => {
     if (cameraStream) {
       cameraStream.getTracks().forEach((track) => track.stop());
       setCameraStream(null);
+    }
+  }, [cameraStream]);
+
+  const toggleCamera = async () => {
+    if (cameraStream) {
+      stopCamera();
     } else {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: cameraSelectorRef.current?.value },
+        const constraints: MediaStreamConstraints = {
+          video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true,
           audio: false,
-        });
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         setCameraStream(stream);
       } catch (error) {
         console.error("Error toggling camera:", error);
@@ -27,20 +35,30 @@ export function useCamera() {
   useEffect(() => {
     const getCameras = async () => {
       try {
+        // Request initial permission to get labels
+        const initialStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        initialStream.getTracks().forEach(t => t.stop());
+
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter((device) => device.kind === "videoinput");
         setCameras(videoDevices);
+
+        if (videoDevices.length > 0 && !selectedDeviceId) {
+          setSelectedDeviceId(videoDevices[0].deviceId);
+        }
       } catch (error) {
         console.error("Error getting cameras:", error);
       }
     };
     getCameras();
-  }, []);
+  }, [selectedDeviceId]);
 
   return {
     cameras,
     cameraStream,
-    cameraSelectorRef,
+    selectedDeviceId,
+    setSelectedDeviceId,
     toggleCamera,
+    stopCamera,
   };
 }

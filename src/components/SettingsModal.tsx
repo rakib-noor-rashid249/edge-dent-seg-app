@@ -19,7 +19,8 @@ interface SettingsModalProps {
     setDevice: (val: string) => void;
     modelName: string;
     setModelName: (val: string) => void;
-    cameraSelectorRef: React.RefObject<HTMLSelectElement | null>;
+    selectedDeviceId: string;
+    setSelectedDeviceId: (val: string) => void;
     customModels: CustomModel[];
     cameras: MediaDeviceInfo[];
     onAddModel: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -30,7 +31,8 @@ export default function SettingsModal({
     setDevice,
     modelName,
     setModelName,
-    cameraSelectorRef,
+    selectedDeviceId,
+    setSelectedDeviceId,
     customModels,
     cameras,
     onAddModel,
@@ -59,7 +61,8 @@ export default function SettingsModal({
                         setDevice={setDevice}
                         modelName={modelName}
                         setModelName={setModelName}
-                        cameraSelectorRef={cameraSelectorRef}
+                        selectedDeviceId={selectedDeviceId}
+                        setSelectedDeviceId={setSelectedDeviceId}
                         customModels={customModels}
                         cameras={cameras}
                     />
