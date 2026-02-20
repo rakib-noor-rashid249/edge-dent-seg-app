@@ -24,8 +24,8 @@ importers:
         specifier: ^1.2.4
         version: 1.2.4(@types/react@19.2.14)(react@19.2.4)
       '@techstark/opencv-js':
-        specifier: ^4.10.0-release.1
-        version: 4.10.0-release.1
+        specifier: 4.12.0-release.1
+        version: 4.12.0-release.1
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -39,7 +39,7 @@ importers:
         specifier: 16.1.6
         version: 16.1.6(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       onnxruntime-web:
-        specifier: ^1.21.0
+        specifier: ^1.24.2
         version: 1.24.2
       react:
         specifier: 19.2.4
@@ -55,10 +55,10 @@ importers:
         version: 1.0.7(tailwindcss@4.2.0)
     devDependencies:
       '@tailwindcss/postcss':
-        specifier: ^4
+        specifier: ^4.2.0
         version: 4.2.0
       '@types/node':
-        specifier: ^20
+        specifier: ^20.19.33
         version: 20.19.33
       '@types/react':
         specifier: 19.2.14
@@ -67,16 +67,16 @@ importers:
         specifier: 19.2.3
         version: 19.2.3(@types/react@19.2.14)
       eslint:
-        specifier: ^9
+        specifier: ^9.39.2
         version: 9.39.2(jiti@2.6.1)
       eslint-config-next:
         specifier: 16.1.6
         version: 16.1.6(@typescript-eslint/parser@8.56.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
       tailwindcss:
-        specifier: ^4
+        specifier: ^4.2.0
         version: 4.2.0
       typescript:
-        specifier: ^5
+        specifier: ^5.9.3
         version: 5.9.3
 
 packages:
@@ -930,8 +930,8 @@ packages:
   '@tailwindcss/postcss@4.2.0':
     resolution: {integrity: sha512-u6YBacGpOm/ixPfKqfgrJEjMfrYmPD7gEFRoygS/hnQaRtV0VCBdpkx5Ouw9pnaLRwwlgGCuJw8xLpaR0hOrQg==}
 
-  '@techstark/opencv-js@4.10.0-release.1':
-    resolution: {integrity: sha512-S4XELidRiQeA0q1s9VQLo540wCxUo24r1O4C+LqZ6llX+sPCXvZCPv3Ice8dEIr0uavyZ8YZeKXSBdDgMXSXjw==}
+  '@techstark/opencv-js@4.12.0-release.1':
+    resolution: {integrity: sha512-LtTaph9v/HqLPXEg3m1xs2h7QJh10pUpuDT0nj8g77lelWnTwwQrehtd+fXElLOdrkqc4Fea6Z/sJBvEJLYPfw==}
 
   '@tybys/wasm-util@0.10.1':
     resolution: {integrity: sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==}
@@ -3206,7 +3206,7 @@ snapshots:
       postcss: 8.5.6
       tailwindcss: 4.2.0
 
-  '@techstark/opencv-js@4.10.0-release.1': {}
+  '@techstark/opencv-js@4.12.0-release.1': {}
 
   '@tybys/wasm-util@0.10.1':
     dependencies:
