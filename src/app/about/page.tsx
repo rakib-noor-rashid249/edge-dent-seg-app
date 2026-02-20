@@ -44,7 +44,7 @@ const FEATURES = [
     {
         icon: Zap,
         title: "Hardware Acceleration",
-        desc: "Switch between WebGPU (GPU), WASM (CPU), and WebNN backends for optimal performance on any hardware.",
+        desc: "Switch between WebGPU (GPU) and WASM (CPU) backends for optimal performance on any hardware.",
         color: "amber",
     },
     {
