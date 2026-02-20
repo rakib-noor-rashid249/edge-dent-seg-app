@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 
 import { Card } from "@/components/ui/card";
-import { Image as ImageIcon, Camera, X, Cpu, Package, Video } from "lucide-react";
+import { Image as ImageIcon, Camera, X, Cpu, Package, Video, Zap, ChevronDown, ChevronUp, Sliders } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -80,6 +80,7 @@ export default function MediaDisplay({
   modelUploadRef,
 }: MediaDisplayProps) {
   const [mounted, setMounted] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -93,10 +94,11 @@ export default function MediaDisplay({
 
       {/* SYSTEM STATUS BAR — Responsive and Interactive */}
       <div className="flex-none bg-white border-b border-slate-100 px-4 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 md:gap-4">
+        <div className={`flex flex-col md:flex-row items-stretch md:items-center gap-2 md:gap-4 transition-all duration-300 ${!showSettings ? 'hidden md:flex' : 'flex'}`}>
 
           {/* Device Selection */}
           <div className="flex items-center gap-2">
+            <Cpu className="w-3.5 h-3.5 text-slate-400" />
             <Select value={device} onValueChange={setDevice}>
               <SelectTrigger className="h-8 w-full md:w-[120px] text-[11px] font-bold uppercase tracking-wider bg-slate-50 border-slate-200 rounded-full">
                 <div className="flex items-center gap-2">
@@ -107,6 +109,7 @@ export default function MediaDisplay({
                       }`}
                   />
                   <SelectValue placeholder="Device" />
+
                 </div>
               </SelectTrigger>
               <SelectContent>
@@ -120,7 +123,7 @@ export default function MediaDisplay({
           <div className="flex items-center gap-2">
             <Package className="w-3.5 h-3.5 text-slate-400" />
             <Select value={modelName} onValueChange={setModelName}>
-              <SelectTrigger className="h-8 w-full md:min-w-[140px] text-[11px] font-bold text-slate-700 bg-slate-50 border-slate-200 font-mono">
+              <SelectTrigger className="h-8 w-full md:min-w-[140px] text-[11px] font-bold text-slate-700 bg-slate-50 border-slate-200 font-mono rounded-full">
                 <SelectValue placeholder="Select Model" />
               </SelectTrigger>
               <SelectContent>
@@ -154,7 +157,7 @@ export default function MediaDisplay({
           <div className="flex items-center gap-2">
             <Video className="w-3.5 h-3.5 text-slate-400" />
             <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
-              <SelectTrigger className="h-8 w-full md:w-[160px] text-[11px] font-medium text-slate-700 bg-slate-50 border-slate-200">
+              <SelectTrigger className="h-8 w-full md:w-[160px] text-[11px] font-medium text-slate-700 bg-slate-50 border-slate-200 rounded-full">
                 <SelectValue placeholder="Select Camera" />
               </SelectTrigger>
               <SelectContent>
@@ -169,6 +172,18 @@ export default function MediaDisplay({
               </SelectContent>
             </Select>
           </div>
+        </div>
+
+        {/* Mobile Settings Toggle */}
+        <div className="md:hidden flex items-center justify-between gap-4 mt-1">
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200 text-slate-600 font-medium text-[10px] uppercase tracking-wider transition-colors hover:bg-slate-100"
+          >
+            <Sliders className="w-3 h-3 text-slate-400" />
+            {showSettings ? "Hide Options" : "Show Options"}
+            {showSettings ? <ChevronUp className="w-3 h-3 text-slate-400" /> : <ChevronDown className="w-3 h-3 text-slate-400" />}
+          </button>
         </div>
 
         {/* Right side: performance metrics */}

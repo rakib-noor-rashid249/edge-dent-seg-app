@@ -12,14 +12,14 @@ export default function Header({ rightSlot }: HeaderProps) {
     const pathname = usePathname();
 
     return (
-        <header className="bg-white border-b border-slate-200 sticky top-0 z-30 px-6 py-4 flex items-center justify-between shadow-sm">
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-30 px-4 md:px-6 py-3 md:py-4 flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-4">
                 {/* Brand */}
                 <Link href="/" className="flex items-center gap-2 group">
                     <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center text-white font-bold text-xl group-hover:bg-teal-700 transition-colors">D</div>
-                    <span className="text-xl font-bold text-slate-800 tracking-tight">
+                    <span className="text-lg md:text-xl font-bold text-slate-800 tracking-tight flex items-baseline">
                         Edge Dent Seg
-                        <span className="text-slate-400 font-normal text-sm ml-2">Clinical Suite</span>
+                        <span className="text-slate-400 font-normal text-xs md:sm ml-2 hidden sm:inline">Clinical Suite</span>
                     </span>
                 </Link>
 
