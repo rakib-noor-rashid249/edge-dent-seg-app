@@ -6,21 +6,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 
 interface ModelSettingsProps {
-    deviceRef: React.RefObject<HTMLSelectElement | null>;
-    modelRef: React.RefObject<HTMLSelectElement | null>;
+    device: string;
+    setDevice: (val: string) => void;
+    modelName: string;
+    setModelName: (val: string) => void;
     cameraSelectorRef: React.RefObject<HTMLSelectElement | null>;
     customModels: CustomModel[];
     cameras: MediaDeviceInfo[];
-    onLoadModel: () => void;
 }
 
 export default function ModelSettings({
-    deviceRef,
-    modelRef,
+    device,
+    setDevice,
+    modelName,
+    setModelName,
     cameraSelectorRef,
     customModels,
     cameras,
-    onLoadModel,
 }: ModelSettingsProps) {
     return (
         <Card className="w-full max-w-3xl p-6 bg-white/50 backdrop-blur-sm border-slate-200 shadow-sm">
@@ -28,11 +30,9 @@ export default function ModelSettings({
                 <div className="flex flex-col gap-2 min-w-[200px]">
                     <Label htmlFor="device-selector" className="text-slate-600 font-medium">Processing Unit</Label>
                     <Select onValueChange={(val) => {
-                        if (deviceRef.current) {
-                            deviceRef.current.value = val;
-                            onLoadModel();
-                        }
-                    }} defaultValue="webgpu">
+                        setDevice(val);
+                        // onLoadModel(); // Handled by useEffect in hook
+                    }} value={device}>
                         <SelectTrigger className="w-full bg-white border-slate-200">
                             <SelectValue placeholder="Select Backend" />
                         </SelectTrigger>
@@ -41,33 +41,14 @@ export default function ModelSettings({
                             <SelectItem value="wasm">Wasm (CPU)</SelectItem>
                         </SelectContent>
                     </Select>
-                    {/* Hidden select for compatibility if refs are strictly needed, otherwise we should update hook to use state. 
-                        For now, linking Select to Ref via onValueChange manual update or keeping hidden select.
-                        Actually, refs are used in hook. let's keep native selects hidden or update refs manually.
-                        The hook reads .value from ref. We can use a hidden native select sync strategy or just update the ref's current value if it's a mutable object, 
-                        BUT refs usually point to DOM elements. 
-                        
-                        Strategy: Keep the original selects HIDDEN and control them via Shadcn Select onValueChange.
-                    */}
-                    <select
-                        name="device-selector"
-                        ref={deviceRef}
-                        className="hidden"
-                        defaultValue="webgpu"
-                    >
-                        <option value="webgpu">webGPU</option>
-                        <option value="wasm">Wasm(cpu)</option>
-                    </select>
                 </div>
 
                 <div className="flex flex-col gap-2 min-w-[200px]">
                     <Label htmlFor="model-selector" className="text-slate-600 font-medium">AI Model</Label>
                     <Select onValueChange={(val) => {
-                        if (modelRef.current) {
-                            modelRef.current.value = val;
-                            onLoadModel();
-                        }
-                    }} defaultValue="fft-11-n-best">
+                        setModelName(val);
+                        // onLoadModel(); // Handled by useEffect in hook
+                    }} value={modelName}>
                         <SelectTrigger className="w-full bg-white border-slate-200">
                             <SelectValue placeholder="Select Model" />
                         </SelectTrigger>
@@ -81,20 +62,6 @@ export default function ModelSettings({
                             ))}
                         </SelectContent>
                     </Select>
-                    <select
-                        name="model-selector"
-                        ref={modelRef}
-                        className="hidden"
-                        defaultValue="fft-11-n-best"
-                    >
-                        <option value="fft-11-n-best">ESN-11n-2.6M</option>
-                        <option value="fft-11-s-best">ESN-11s-9.4M</option>
-                        {customModels.map((model, index) => (
-                            <option key={index} value={model.url}>
-                                {model.name}
-                            </option>
-                        ))}
-                    </select>
                 </div>
 
                 <div className="flex flex-col gap-2 min-w-[200px]">

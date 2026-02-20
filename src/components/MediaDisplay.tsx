@@ -2,7 +2,7 @@
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Image as ImageIcon } from "lucide-react";
+import { Image as ImageIcon, Camera, X } from "lucide-react";
 
 interface MediaDisplayProps {
   inputCanvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -14,6 +14,10 @@ interface MediaDisplayProps {
   onCameraLoad: () => void;
   onImageLoad: () => void;
   onImageSelect: (src: string) => void;
+  onCameraToggle: () => void;
+  onImageToggle: () => void;
+  openImageRef: React.RefObject<HTMLInputElement | null>;
+  onOpenImage: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 const EXAMPLE_IMAGES = [
@@ -33,6 +37,10 @@ export default function MediaDisplay({
   onCameraLoad,
   onImageLoad,
   onImageSelect,
+  onCameraToggle,
+  onImageToggle,
+  openImageRef,
+  onOpenImage,
 }: MediaDisplayProps) {
 
   const showPlaceholder = !imgSrc && !cameraStream;
@@ -45,20 +53,50 @@ export default function MediaDisplay({
 
       {/* PLACEHOLDER / EXAMPLE GRID */}
       {showPlaceholder && (
-        <div className="text-center p-8 max-w-2xl w-full">
-          <div className="bg-white p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center shadow-sm">
-            <ImageIcon className="text-slate-400 w-8 h-8" />
-          </div>
-          <h3 className="text-xl font-semibold text-slate-700 mb-2">No Image or Camera Detected</h3>
-          <p className="text-slate-500 mb-8">Select a source from the sidebar or choose an example below.</p>
+        <div className="text-center p-8 max-w-2xl w-full flex flex-col items-center">
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="flex gap-4 mb-8 w-full justify-center">
+            <Button
+              size="lg"
+              className="h-auto py-6 px-8 flex flex-col gap-2 shadow-md hover:shadow-lg transition-all"
+              onClick={() => openImageRef.current?.click()}
+            >
+              <ImageIcon className="w-8 h-8" />
+              <span className="text-lg">Upload Image</span>
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                ref={openImageRef}
+                onChange={onOpenImage}
+              />
+            </Button>
+
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-auto py-6 px-8 flex flex-col gap-2 shadow-sm hover:shadow-md transition-all border-dashed border-2"
+              onClick={onCameraToggle}
+            >
+              <Camera className="w-8 h-8" />
+              <span className="text-lg">Open Camera</span>
+            </Button>
+          </div>
+
+          <div className="relative flex items-center w-full max-w-md mb-8">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="flex-shrink-0 mx-4 text-slate-400 text-sm">Or try an example</span>
+            <div className="flex-grow border-t border-slate-200"></div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
             {EXAMPLE_IMAGES.map((src, i) => (
               <button
                 key={i}
                 onClick={() => onImageSelect(src)}
-                className="relative group/img overflow-hidden rounded-lg aspect-square border border-slate-200 hover:border-teal-500 hover:ring-2 hover:ring-teal-500/20 transition-all"
+                className="relative group/img overflow-hidden rounded-lg aspect-square border border-slate-200 hover:border-teal-500 hover:ring-2 hover:ring-teal-500/20 transition-all shadow-sm"
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={src} alt={`Example ${i + 1}`} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/10 transition-colors" />
               </button>
@@ -81,6 +119,7 @@ export default function MediaDisplay({
 
         {/* Image for static input */}
         {imgSrc && (
+          /* eslint-disable-next-line @next/next/no-img-element */
           <img
             id="img"
             ref={imgRef}
@@ -94,7 +133,21 @@ export default function MediaDisplay({
         {/* Overlay canvas */}
         {/* We only show canvas if there is media content */}
         {(cameraStream || imgSrc) && (
-          <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+          <>
+            <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+            <Button
+              variant="destructive"
+              size="icon"
+              className="absolute top-4 right-4 z-10 shadow-md rounded-full w-8 h-8"
+              onClick={() => {
+                if (cameraStream) onCameraToggle();
+                if (imgSrc) onImageToggle();
+              }}
+            >
+              <X className="w-4 h-4" />
+              <span className="sr-only">Close</span>
+            </Button>
+          </>
         )}
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { InferenceSession } from "onnxruntime-web";
 import { model_loader } from "../utils/model_loader";
 import { CustomModel } from "../utils/types";
@@ -14,25 +14,24 @@ export function useYoloModel() {
   const [customModels, setCustomModels] = useState<CustomModel[]>([]);
   const [isModelLoaded, setIsModelLoaded] = useState<boolean>(false);
   const [warmUpTime, setWarmUpTime] = useState<string>("0");
+  const [device, setDevice] = useState<string>("webgpu");
+  const [modelName, setModelName] = useState<string>("fft-11-n-best");
+
   const sessionRef = useRef<InferenceSession>(null);
   const modelStatusRef = useRef<HTMLParagraphElement>(null);
-  const deviceRef = useRef<HTMLSelectElement>(null);
-  const modelRef = useRef<HTMLSelectElement>(null);
 
-  const loadModel = async () => {
-    if (!modelStatusRef.current || !deviceRef.current || !modelRef.current) return;
-    
+  const loadModel = useCallback(async () => {
+    if (!modelStatusRef.current) return;
+
     const modelStatusEl = modelStatusRef.current;
     modelStatusEl.textContent = "Loading model...";
     modelStatusEl.style.color = "red";
     setIsModelLoaded(false);
 
-    const device = deviceRef.current.value;
-    const selectedModel = modelRef.current.value;
-    const customModel = customModels.find((model) => model.url === selectedModel);
+    const customModel = customModels.find((model) => model.url === modelName);
     const model_path = customModel
       ? customModel.url
-      : `/models/${selectedModel}.onnx`;
+      : `/models/${modelName}.onnx`;
 
     try {
       const start = performance.now();
@@ -51,7 +50,7 @@ export function useYoloModel() {
       }
       console.error(error);
     }
-  };
+  }, [device, modelName, customModels]); // Added dependencies
 
   const addModel = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -65,8 +64,9 @@ export function useYoloModel() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     loadModel();
-  }, []);
+  }, [loadModel]); // Reload when loadModel changes (which depends on device/modelName)
 
   return {
     customModels,
@@ -74,8 +74,10 @@ export function useYoloModel() {
     warmUpTime,
     sessionRef,
     modelStatusRef,
-    deviceRef,
-    modelRef,
+    device,
+    setDevice,
+    modelName,
+    setModelName,
     config,
     loadModel,
     addModel,

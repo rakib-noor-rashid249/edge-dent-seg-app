@@ -1,0 +1,28 @@
+
+/home/prant/projects/edge-dent-seg-app/eslint.config.mjs
+  7:7  warning  '__dirname' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/prant/projects/edge-dent-seg-app/src/components/ModelSettings.tsx
+  27:5  warning  'onLoadModel' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/prant/projects/edge-dent-seg-app/src/hooks/useYoloModel.ts
+  67:5  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/prant/projects/edge-dent-seg-app/src/hooks/useYoloModel.ts:67:5
+  65 |
+  66 |   useEffect(() => {
+> 67 |     loadModel();
+     |     ^^^^^^^^^ Avoid calling setState() directly within an effect
+  68 |   }, [device, modelName]); // Reload when device or model changes
+  69 |
+  70 |   return {  react-hooks/set-state-in-effect
+  68:6  warning  React Hook useEffect has a missing dependency: 'loadModel'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+
+✖ 4 problems (1 error, 3 warnings)
+

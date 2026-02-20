@@ -7,16 +7,6 @@ export function useCamera() {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const cameraSelectorRef = useRef<HTMLSelectElement>(null);
 
-  const getCameras = async () => {
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter((device) => device.kind === "videoinput");
-      setCameras(videoDevices);
-    } catch (error) {
-      console.error("Error getting cameras:", error);
-    }
-  };
-
   const toggleCamera = async () => {
     if (cameraStream) {
       cameraStream.getTracks().forEach((track) => track.stop());
@@ -35,6 +25,15 @@ export function useCamera() {
   };
 
   useEffect(() => {
+    const getCameras = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter((device) => device.kind === "videoinput");
+        setCameras(videoDevices);
+      } catch (error) {
+        console.error("Error getting cameras:", error);
+      }
+    };
     getCameras();
   }, []);
 
