@@ -55,14 +55,18 @@ export default function MediaDisplay({
       {showPlaceholder && (
         <div className="text-center p-8 max-w-2xl w-full flex flex-col items-center">
 
-          <div className="flex gap-4 mb-8 w-full justify-center">
-            <Button
-              size="lg"
-              className="h-auto py-6 px-8 flex flex-col gap-2 shadow-md hover:shadow-lg transition-all"
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg mb-8">
+            <Card
+              className="p-6 cursor-pointer hover:border-teal-500 hover:shadow-md transition-all flex flex-col items-center gap-3 group border-slate-200"
               onClick={() => openImageRef.current?.click()}
             >
-              <ImageIcon className="w-8 h-8" />
-              <span className="text-lg">Upload Image</span>
+              <div className="p-4 bg-teal-50 rounded-full group-hover:bg-teal-100 transition-colors">
+                <ImageIcon className="w-8 h-8 text-teal-600" />
+              </div>
+              <div className="text-center">
+                <h3 className="font-semibold text-slate-900">Upload Image</h3>
+                <p className="text-sm text-slate-500">Analyze a local file</p>
+              </div>
               <input
                 type="file"
                 accept="image/*"
@@ -70,17 +74,20 @@ export default function MediaDisplay({
                 ref={openImageRef}
                 onChange={onOpenImage}
               />
-            </Button>
+            </Card>
 
-            <Button
-              size="lg"
-              variant="outline"
-              className="h-auto py-6 px-8 flex flex-col gap-2 shadow-sm hover:shadow-md transition-all border-dashed border-2"
+            <Card
+              className="p-6 cursor-pointer hover:border-teal-500 hover:shadow-md transition-all flex flex-col items-center gap-3 group border-slate-200"
               onClick={onCameraToggle}
             >
-              <Camera className="w-8 h-8" />
-              <span className="text-lg">Open Camera</span>
-            </Button>
+              <div className="p-4 bg-purple-50 rounded-full group-hover:bg-purple-100 transition-colors">
+                <Camera className="w-8 h-8 text-purple-600" />
+              </div>
+              <div className="text-center">
+                <h3 className="font-semibold text-slate-900">Open Camera</h3>
+                <p className="text-sm text-slate-500">Real-time detection</p>
+              </div>
+            </Card>
           </div>
 
           <div className="relative flex items-center w-full max-w-md mb-8">

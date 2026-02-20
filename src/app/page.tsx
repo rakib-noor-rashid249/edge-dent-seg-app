@@ -15,24 +15,12 @@ export default function Home() {
     isModelLoaded,
     warmUpTime,
     sessionRef,
-    // modelStatusRef, // Already destructured above? No, wait. 
-    // I need to see the file to be sure. 
-    // The previous edit showed:
-    // modelStatusRef,
-    // device,
-    // ...
-    // And before that:
-    // modelStatusRef,
-    // deviceRef -> removed
-
-    // Let's just list the properties clearly.
-    modelStatusRef,
+    modelStatus,
     device,
     setDevice,
     modelName,
     setModelName,
     config,
-    loadModel,
     addModel,
   } = useYoloModel();
 
@@ -121,7 +109,7 @@ export default function Home() {
         {/* Sidebar Status (Detections) */}
         <aside className="lg:col-span-4 xl:col-span-3 space-y-6 flex flex-col order-2 lg:order-1 h-[calc(100vh-120px)] sticky top-24">
           <ModelStatus
-            modelStatusRef={modelStatusRef}
+            modelStatus={modelStatus}
             isModelLoaded={isModelLoaded}
             warmUpTime={warmUpTime}
             inferenceTime={inferenceTime}

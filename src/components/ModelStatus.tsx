@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 interface ModelStatusProps {
-  modelStatusRef: React.RefObject<HTMLParagraphElement | null>;
+  modelStatus: string;
   isModelLoaded: boolean;
   warmUpTime: string;
   inferenceTime: string;
@@ -14,7 +14,7 @@ interface ModelStatusProps {
 }
 
 export default function ModelStatus({
-  modelStatusRef,
+  modelStatus,
   isModelLoaded,
   warmUpTime,
   inferenceTime,
@@ -31,8 +31,8 @@ export default function ModelStatus({
             Inference: <span className="text-teal-600 font-semibold ml-1">{inferenceTime}ms</span>
           </Badge>
         </div>
-        <div ref={modelStatusRef} className={`text-sm font-medium ${isModelLoaded ? 'text-teal-600' : 'text-amber-500 animate-pulse'}`}>
-          {isModelLoaded ? "Model Ready" : "Loading Model..."}
+        <div className={`text-sm font-medium ${isModelLoaded ? 'text-teal-600' : 'text-amber-500 animate-pulse'}`}>
+          {modelStatus}
         </div>
       </div>
 

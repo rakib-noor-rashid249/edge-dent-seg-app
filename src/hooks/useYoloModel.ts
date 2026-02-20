@@ -18,14 +18,12 @@ export function useYoloModel() {
   const [modelName, setModelName] = useState<string>("fft-11-n-best");
 
   const sessionRef = useRef<InferenceSession>(null);
-  const modelStatusRef = useRef<HTMLParagraphElement>(null);
+  const [modelStatus, setModelStatus] = useState<string>("Loading model...");
+
+
 
   const loadModel = useCallback(async () => {
-    if (!modelStatusRef.current) return;
-
-    const modelStatusEl = modelStatusRef.current;
-    modelStatusEl.textContent = "Loading model...";
-    modelStatusEl.style.color = "red";
+    setModelStatus("Loading model...");
     setIsModelLoaded(false);
 
     const customModel = customModels.find((model) => model.url === modelName);
@@ -39,15 +37,11 @@ export function useYoloModel() {
       const end = performance.now();
       sessionRef.current = yolo_model;
 
-      modelStatusEl.textContent = "Model loaded";
-      modelStatusEl.style.color = "green";
+      setModelStatus("Model loaded");
       setWarmUpTime((end - start).toFixed(2));
       setIsModelLoaded(true);
     } catch (error) {
-      if (modelStatusEl) {
-        modelStatusEl.textContent = "Model loading failed";
-        modelStatusEl.style.color = "red";
-      }
+      setModelStatus("Model loading failed");
       console.error(error);
     }
   }, [device, modelName, customModels]); // Added dependencies
@@ -73,7 +67,7 @@ export function useYoloModel() {
     isModelLoaded,
     warmUpTime,
     sessionRef,
-    modelStatusRef,
+    modelStatus,
     device,
     setDevice,
     modelName,
