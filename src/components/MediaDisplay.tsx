@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 
 import { Card } from "@/components/ui/card";
-import { Image as ImageIcon, Camera, X, Cpu, Package, Video, Zap, ChevronDown, ChevronUp, Sliders } from "lucide-react";
+import { Image as ImageIcon, Camera, X, Cpu, Package, Video, ChevronDown, ChevronUp, Sliders } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -130,7 +130,7 @@ export default function MediaDisplay({
                   <SelectContent>
                     <SelectItem value="fft-11-n-best" className="text-xs font-mono">High Speed</SelectItem>
                     <SelectItem value="fft-11-s-best" className="text-xs font-mono">High Accuracy</SelectItem>
-                    {customModels.map((model) => (
+                    {customModels.filter(model => model.url).map((model) => (
                       <SelectItem key={model.url} value={model.url} className="text-xs font-mono">
                         {model.name}
                       </SelectItem>
@@ -162,12 +162,12 @@ export default function MediaDisplay({
                     <SelectValue placeholder="Select Camera" />
                   </SelectTrigger>
                   <SelectContent>
-                    {cameras.map((cam) => (
+                    {cameras.filter(cam => cam.deviceId).map((cam) => (
                       <SelectItem key={cam.deviceId} value={cam.deviceId} className="text-xs">
                         {cam.label || `Camera ${cam.deviceId.slice(0, 5)}`}
                       </SelectItem>
                     ))}
-                    {cameras.length === 0 && (
+                    {cameras.filter(cam => cam.deviceId).length === 0 && (
                       <SelectItem value="no-camera" disabled className="text-xs">No cameras found</SelectItem>
                     )}
                   </SelectContent>
