@@ -50,7 +50,7 @@ const FEATURES = [
     {
         icon: Layers,
         title: "Multiple Models",
-        desc: "Choose from several YOLO11-Seg model sizes (n, s, m, l) or load your own custom .onnx model.",
+        desc: "Choose from several YOLO11-Seg model sizes (n, s) or load your own custom .onnx model.",
         color: "blue",
     },
     {
@@ -93,7 +93,7 @@ const colorMap: Record<string, string> = {
 const TECH_STACK = [
     { name: "YOLO11-Seg", role: "Segmentation Model", href: "https://docs.ultralytics.com/models/yolo11/" },
     { name: "ONNX Runtime Web", role: "Browser Inference Engine", href: "https://onnxruntime.ai/" },
-    { name: "WebGPU / WebNN / WASM", role: "Hardware Backends", href: "https://www.w3.org/TR/webgpu/" },
+    { name: "WebGPU / WASM", role: "Hardware Backends", href: "https://www.w3.org/TR/webgpu/" },
     { name: "OpenCV.js", role: "Image Pre/Post-processing", href: "https://docs.opencv.org/4.x/d5/d10/tutorial_js_root.html" },
     { name: "Next.js 15", role: "React Framework", href: "https://nextjs.org/" },
     { name: "Tailwind CSS", role: "Styling", href: "https://tailwindcss.com/" },
