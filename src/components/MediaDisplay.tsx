@@ -99,7 +99,7 @@ export default function MediaDisplay({
           {/* Device Selection */}
           <div className="flex items-center gap-2">
             <Cpu className="w-3.5 h-3.5 text-slate-400" />
-            <Select value={device} onValueChange={setDevice}>
+            <Select value={device} onValueChange={setDevice} defaultValue="webgpu">
               <SelectTrigger className="h-8 w-full md:w-[120px] text-[11px] font-bold uppercase tracking-wider bg-slate-50 border-slate-200 rounded-full">
                 <div className="flex items-center gap-2">
                   <div
@@ -108,8 +108,7 @@ export default function MediaDisplay({
                       : "bg-amber-400 animate-pulse"
                       }`}
                   />
-                  <SelectValue placeholder="Device" />
-
+                  <SelectValue placeholder="Select Device" />
                 </div>
               </SelectTrigger>
               <SelectContent>
@@ -122,7 +121,7 @@ export default function MediaDisplay({
           {/* Model Selection */}
           <div className="flex items-center gap-2">
             <Package className="w-3.5 h-3.5 text-slate-400" />
-            <Select value={modelName} onValueChange={setModelName}>
+            <Select value={modelName} onValueChange={setModelName} defaultValue="fft-11-n-best">
               <SelectTrigger className="h-8 w-full md:min-w-[140px] text-[11px] font-bold text-slate-700 bg-slate-50 border-slate-200 font-mono rounded-full">
                 <SelectValue placeholder="Select Model" />
               </SelectTrigger>
