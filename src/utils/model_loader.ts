@@ -66,7 +66,7 @@ export async function model_loader(
     return yolo_model;
   } catch (error) {
     console.error("Error loading model:", error);
-    return null;
+    throw error;
   }
 }
 

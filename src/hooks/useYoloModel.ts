@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { InferenceSession } from "onnxruntime-web";
 import { model_loader } from "../utils/model_loader";
 import { CustomModel } from "../utils/types";
+import { isWebGPUSupported } from "../utils/gpu_check";
 
 const input_shape = [1, 3, 640, 640];
 const iou_threshold = 0.25;
@@ -14,7 +15,7 @@ export function useYoloModel() {
   const [customModels, setCustomModels] = useState<CustomModel[]>([]);
   const [isModelLoaded, setIsModelLoaded] = useState<boolean>(false);
   const [warmUpTime, setWarmUpTime] = useState<string>("0");
-  const [device, setDevice] = useState<string>("webgpu");
+  const [device, setDevice] = useState<string>(isWebGPUSupported() ? "webgpu" : "wasm");
   const [modelName, setModelName] = useState<string>("fft-11-n-best");
 
   const sessionRef = useRef<InferenceSession | null>(null);
@@ -56,8 +57,17 @@ export function useYoloModel() {
       setWarmUpTime((end - start).toFixed(2));
       setIsModelLoaded(true);
     } catch (error) {
-      setModelStatus("Model loading failed");
-      console.error(error);
+      console.error("[useYoloModel] Error loading model:", error);
+
+      // If WebGPU fails, try falling back to WASM automatically
+      if (device === "webgpu") {
+        console.warn("[useYoloModel] WebGPU failed, falling back to WASM...");
+        setModelStatus("Falling back to WASM...");
+        setDevice("wasm");
+        // The device state change will trigger a re-load via useEffect
+      } else {
+        setModelStatus("Model loading failed");
+      }
     } finally {
       loadingRef.current = false;
     }
