@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import SettingsModal from "../components/SettingsModal";
 import MediaDisplay from "../components/MediaDisplay";
 import ModelStatus from "../components/ModelStatus";
 import Header from "../components/Header";
