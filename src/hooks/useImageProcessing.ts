@@ -34,13 +34,25 @@ export function useImageProcessing() {
   };
 
   const processImage = async (session: InferenceSession, config: Config) => {
-    if (!imgRef.current || !overlayRef.current || !session) return;
+    if (!imgRef.current || !overlayRef.current || !inputCanvasRef.current || !session) return;
 
+    const naturalW = imgRef.current.naturalWidth;
+    const naturalH = imgRef.current.naturalHeight;
+
+    // Draw the full-resolution image onto the input canvas
+    // so cv.imread reads pixels at natural size, not CSS display size
+    inputCanvasRef.current.width = naturalW;
+    inputCanvasRef.current.height = naturalH;
+    const inputCtx = inputCanvasRef.current.getContext("2d", { willReadFrequently: true });
+    if (!inputCtx) return;
+    inputCtx.drawImage(imgRef.current, 0, 0, naturalW, naturalH);
+
+    // Size the overlay to match the displayed image dimensions
     overlayRef.current.width = imgRef.current.width;
     overlayRef.current.height = imgRef.current.height;
 
     const [results, resultsInferenceTime] = await inference_pipeline(
-      imgRef.current,
+      inputCanvasRef.current,
       session,
       config,
       overlayRef.current
