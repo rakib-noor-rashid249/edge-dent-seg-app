@@ -2,16 +2,38 @@ import cv from '@techstark/opencv-js';
 import { Box } from './types';
 
 /**
+ * Preprocessing metadata needed for mask post-processing.
+ */
+export interface PreProcessMeta {
+  xRatio: number;
+  yRatio: number;
+  /** Width of image after stride-alignment, before padding */
+  divWidth: number;
+  /** Height of image after stride-alignment, before padding */
+  divHeight: number;
+  /** Size of the padded square (max of divWidth, divHeight) */
+  maxDim: number;
+}
+
+/**
  * Pre process input image.
  *
  * Resize and normalize image.
  *
  * @param {cv.Mat} mat - Pre process yolo model input image.
- * @param {number} input_width - Yolo model input width.
- * @param {number} input_height - Yolo model input height.
- * @returns {[cv.Mat, number, number]} Processed input mat and the x/y ratios.
+ * @param {number} input_width - Yolo model input width (e.g. 640).
+ * @param {number} input_height - Yolo model input height (e.g. 640).
+ * @param {number} overlayWidth - Output overlay canvas width.
+ * @param {number} overlayHeight - Output overlay canvas height.
+ * @returns {[cv.Mat, PreProcessMeta]} Processed input mat and metadata.
  */
-export function preProcess(mat: cv.Mat, input_width: number, input_height: number): [cv.Mat, number, number] {
+export function preProcess(
+  mat: cv.Mat,
+  input_width: number,
+  input_height: number,
+  overlayWidth: number,
+  overlayHeight: number
+): [cv.Mat, PreProcessMeta] {
   cv.cvtColor(mat, mat, cv.COLOR_RGBA2RGB);
 
   // Resize to dimensions divisible by 32
@@ -33,10 +55,6 @@ export function preProcess(mat: cv.Mat, input_width: number, input_height: numbe
     new cv.Scalar(0, 0, 0)
   );
 
-  // Calculate ratios
-  const xRatio = mat.cols / input_width;
-  const yRatio = mat.rows / input_height;
-
   // Resize to input dimensions and normalize to [0, 1]
   const preProcessed = cv.blobFromImage(
     mat,
@@ -47,7 +65,13 @@ export function preProcess(mat: cv.Mat, input_width: number, input_height: numbe
     false
   );
 
-  return [preProcessed, xRatio, yRatio];
+  // Map model output coordinates → overlay display coordinates
+  // Model outputs in [0, input_width/input_height] space (the padded square resized to 640)
+  // We need to go: model coords → padded square → original (unpadded) → overlay display
+  const xRatio = (overlayWidth / div_width) * (max_dim / input_width);
+  const yRatio = (overlayHeight / div_height) * (max_dim / input_height);
+
+  return [preProcessed, { xRatio, yRatio, divWidth: div_width, divHeight: div_height, maxDim: max_dim }];
 }
 
 /**
