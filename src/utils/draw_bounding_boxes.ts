@@ -1,4 +1,4 @@
-import classes from "./yolo_classes.json";
+import defaultClasses from "./yolo_classes.json";
 import { Colors } from "./img_preprocess";
 
 /**
@@ -7,11 +7,13 @@ import { Colors } from "./img_preprocess";
  * @param predictions - Detected objects.
  * @param overlay_el - Canvas element to draw on.
  * @param filterIndex - If set, only draw that box fully; dim others.
+ * @param classes - Class labels array. Defaults to built-in yolo_classes.json.
  */
 export async function draw_bounding_boxes(
   predictions: Array<{ bbox: number[]; class_idx: number; score: number }>,
   overlay_el: HTMLCanvasElement,
-  filterIndex: number | null = null
+  filterIndex: number | null = null,
+  classes: string[] = defaultClasses
 ): Promise<void> {
   const ctx = overlay_el.getContext("2d");
   if (!ctx) return;

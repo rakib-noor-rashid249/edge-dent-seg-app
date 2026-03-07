@@ -10,10 +10,7 @@ import { useImageProcessing } from "../hooks/useImageProcessing";
 import "../styles/styles.css";
 import { useEffect } from "react";
 
-import { useRef } from "react";
-
 export default function Home() {
-  const modelUploadRef = useRef<HTMLInputElement>(null);
   const {
     customModels,
     isModelLoaded,
@@ -25,7 +22,8 @@ export default function Home() {
     modelName,
     setModelName,
     config,
-    addModel,
+    addCustomModel,
+    activeClasses,
   } = useYoloModel();
 
   const {
@@ -113,6 +111,7 @@ export default function Home() {
             selectedDetectionIdx={selectedDetectionIdx}
             onSelectDetection={handleSelectDetection}
             onSave={saveResult}
+            classes={activeClasses}
           />
         </aside>
 
@@ -144,8 +143,7 @@ export default function Home() {
             selectedDeviceId={selectedDeviceId}
             setSelectedDeviceId={setSelectedDeviceId}
             customModels={customModels}
-            onAddModel={addModel}
-            modelUploadRef={modelUploadRef}
+            addCustomModel={addCustomModel}
           />
         </section>
 

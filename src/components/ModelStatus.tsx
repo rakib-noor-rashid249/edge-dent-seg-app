@@ -1,7 +1,7 @@
 "use client";
 
 import { Box } from "../utils/types";
-import classes from "../utils/yolo_classes.json";
+import defaultClasses from "../utils/yolo_classes.json";
 import { Colors } from "../utils/img_preprocess";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ interface ModelStatusProps {
   selectedDetectionIdx: number | null;
   onSelectDetection: (idx: number | null) => void;
   onSave: () => void;
+  classes?: string[];
 }
 
 export default function ModelStatus({
@@ -19,6 +20,7 @@ export default function ModelStatus({
   selectedDetectionIdx,
   onSelectDetection,
   onSave,
+  classes = defaultClasses,
 }: ModelStatusProps) {
   const handleRowClick = (idx: number) => {
     onSelectDetection(selectedDetectionIdx === idx ? null : idx);

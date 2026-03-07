@@ -2,12 +2,13 @@ import * as ort from 'onnxruntime-web';
 import cv from '@techstark/opencv-js';
 import { preProcess, applyNMS, Colors } from "./img_preprocess";
 import { Box } from "./types";
-import classes from "./yolo_classes.json";
+import defaultClasses from "./yolo_classes.json";
 
 interface Config {
   input_shape: number[];
   iou_threshold: number;
   score_threshold: number;
+  classes?: string[];
 }
 
 /**
@@ -65,7 +66,8 @@ export async function inference_pipeline(
 
   const NUM_PREDICTIONS = output0.dims[2];
   const NUM_BBOX_ATTRS = 4;
-  const NUM_SCORES = classes.length;
+  const activeClasses = config.classes ?? defaultClasses;
+  const NUM_SCORES = activeClasses.length;
   const NUM_MASK_WEIGHTS = 32;
 
   const predictionsData = output0.data as Float32Array;

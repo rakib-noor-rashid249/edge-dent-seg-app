@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useMediaDisplay } from "./MediaDisplayContext";
+import AddModelDialog from "../AddModelDialog";
 
 /** SSR-safe mount detection without useEffect + setState (fixes react-hooks/set-state-in-effect) */
 const emptySubscribe = () => () => {};
@@ -51,9 +52,10 @@ function DeviceSelect() {
 function ModelSelect() {
   const {
     state: { modelName, customModels },
-    actions: { setModelName, onAddModel },
-    meta: { modelUploadRef },
+    actions: { setModelName, addCustomModel },
   } = useMediaDisplay();
+
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
     <div className="flex items-center gap-2">
@@ -72,21 +74,24 @@ function ModelSelect() {
           ))}
           <div className="p-2 border-t border-slate-100 mt-1">
             <button
-              onClick={() => modelUploadRef.current?.click()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDialogOpen(true);
+              }}
               className="w-full text-[10px] font-bold uppercase tracking-wider py-1.5 px-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded transition-colors"
             >
               + Add Custom Model
             </button>
-            <input
-              type="file"
-              accept=".onnx"
-              ref={modelUploadRef}
-              onChange={onAddModel}
-              className="hidden"
-            />
           </div>
         </SelectContent>
       </Select>
+
+      <AddModelDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onAddModel={addCustomModel}
+      />
     </div>
   );
 }

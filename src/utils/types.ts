@@ -8,4 +8,5 @@ export interface Box {
 export interface CustomModel {
   name: string;
   url: string;
+  classes: string[];
 }

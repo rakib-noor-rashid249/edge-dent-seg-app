@@ -27,7 +27,7 @@ interface MediaDisplayActions {
   onCameraToggle: () => void;
   onImageToggle: () => void;
   onOpenImage: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onAddModel: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  addCustomModel: (model: CustomModel) => void;
 }
 
 interface MediaDisplayMeta {
@@ -36,7 +36,6 @@ interface MediaDisplayMeta {
   imgRef: React.RefObject<HTMLImageElement | null>;
   overlayRef: React.RefObject<HTMLCanvasElement | null>;
   openImageRef: React.RefObject<HTMLInputElement | null>;
-  modelUploadRef: React.RefObject<HTMLInputElement | null>;
 }
 
 export interface MediaDisplayContextValue {

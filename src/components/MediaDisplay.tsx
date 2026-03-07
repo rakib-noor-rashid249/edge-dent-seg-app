@@ -36,19 +36,11 @@ interface MediaDisplayProps {
   selectedDeviceId: string;
   setSelectedDeviceId: (val: string) => void;
   customModels: CustomModel[];
-  onAddModel: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  modelUploadRef: React.RefObject<HTMLInputElement | null>;
+  addCustomModel: (model: CustomModel) => void;
 }
 
 /**
  * MediaDisplay — Compound component for the main media viewer.
- *
- * Composed of:
- *   - StatusBar: device/model/camera selectors + performance metrics
- *   - MediaArea: video, image, overlay canvas, placeholder grid
- *
- * All sub-components access shared state via MediaDisplayContext,
- * eliminating prop drilling.
  */
 export default function MediaDisplay(props: MediaDisplayProps) {
   const contextValue: MediaDisplayContextValue = {
@@ -75,7 +67,7 @@ export default function MediaDisplay(props: MediaDisplayProps) {
       onCameraToggle: props.onCameraToggle,
       onImageToggle: props.onImageToggle,
       onOpenImage: props.onOpenImage,
-      onAddModel: props.onAddModel,
+      addCustomModel: props.addCustomModel,
     },
     meta: {
       inputCanvasRef: props.inputCanvasRef,
@@ -83,7 +75,6 @@ export default function MediaDisplay(props: MediaDisplayProps) {
       imgRef: props.imgRef,
       overlayRef: props.overlayRef,
       openImageRef: props.openImageRef,
-      modelUploadRef: props.modelUploadRef,
     },
   };
 
