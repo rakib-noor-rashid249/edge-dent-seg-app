@@ -25,7 +25,7 @@ const NAV_SECTIONS = [
     { id: "features", label: "Features" },
     { id: "tech", label: "Technology" },
     { id: "usage", label: "How to Use" },
-    { id: "author", label: "Author" },
+    { id: "author", label: "Authors" },
 ];
 
 const FEATURES = [
@@ -267,32 +267,85 @@ export default function AboutPage() {
                     </div>
                 </section>
 
-                {/* ── AUTHOR ──────────────────────────────────────────────── */}
+                {/* ── AUTHORS ─────────────────────────────────────────────── */}
                 <section id="author" className="scroll-mt-28">
                     <div className="mb-8">
-                        <h2 className="text-3xl font-bold text-slate-800 mb-2">Author</h2>
-                        <p className="text-slate-500">The person behind the project.</p>
+                        <h2 className="text-3xl font-bold text-slate-800 mb-2">Authors</h2>
+                        <p className="text-slate-500">The team behind the project.</p>
                     </div>
-                    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6 max-w-lg">
-                        <img
-                            src="https://github.com/pranta-barua007.png"
-                            alt="pranta-barua007"
-                            className="w-20 h-20 rounded-full border-2 border-teal-100 object-cover flex-shrink-0"
-                        />
-                        <div className="text-center sm:text-left">
-                            <h3 className="text-xl font-bold text-slate-800">Pranta Barua</h3>
-                            <p className="text-sm text-slate-500 mb-3">pranta-barua007</p>
-                            <p className="text-sm text-slate-600 leading-relaxed mb-4">
-                                Full-stack developer passionate about bringing AI to the browser edge. Built Edge Dent Seg to make dental AI accessible without server infrastructure.
-                            </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* 1st Author */}
+                        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 flex flex-col items-center text-center gap-3">
+                            <img
+                                src="https://github.com/pranta-barua007.png"
+                                alt="pranta-barua007"
+                                className="w-20 h-20 rounded-full border-2 border-teal-100 object-cover"
+                            />
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800">Pranta Barua</h3>
+                                <p className="text-xs text-slate-500 mb-2">pranta-barua007</p>
+                                <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                                    Full-stack developer passionate about bringing AI to the browser edge.
+                                </p>
+                            </div>
                             <a
                                 href="https://github.com/pranta-barua007"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                                className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg transition-colors"
                             >
-                                <GitBranch className="w-4 h-4" />
-                                View on GitHub
+                                <GitBranch className="w-3.5 h-3.5" />
+                                GitHub
+                            </a>
+                        </div>
+
+                        {/* 2nd Author */}
+                        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 flex flex-col items-center text-center gap-3">
+                            <img
+                                src="https://github.com/rakib-noor-rashid249.png"
+                                alt="rakib-noor-rashid249"
+                                className="w-20 h-20 rounded-full border-2 border-teal-100 object-cover"
+                            />
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800">Rakib Noor Rashid</h3>
+                                <p className="text-xs text-slate-500 mb-2">rakib-noor-rashid249</p>
+                                <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                                    Contributor to Edge Dent Seg dental AI research and development.
+                                </p>
+                            </div>
+                            <a
+                                href="https://github.com/rakib-noor-rashid249"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                            >
+                                <GitBranch className="w-3.5 h-3.5" />
+                                GitHub
+                            </a>
+                        </div>
+
+                        {/* 3rd Author */}
+                        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 flex flex-col items-center text-center gap-3">
+                            <img
+                                src="https://github.com/T-Yeahyea.png"
+                                alt="T-Yeahyea"
+                                className="w-20 h-20 rounded-full border-2 border-teal-100 object-cover"
+                            />
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800">Mohammad Al Fahad Yeahea</h3>
+                                <p className="text-xs text-slate-500 mb-2">T-Yeahyea</p>
+                                <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                                    Contributor to Edge Dent Seg dental AI research and development.
+                                </p>
+                            </div>
+                            <a
+                                href="https://github.com/T-Yeahyea"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                            >
+                                <GitBranch className="w-3.5 h-3.5" />
+                                GitHub
                             </a>
                         </div>
                     </div>
