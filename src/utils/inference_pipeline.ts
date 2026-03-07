@@ -12,11 +12,16 @@ interface Config {
 
 /**
  * Performs inference using the ONNX model and post-processes the results.
- * @param {HTMLImageElement | HTMLCanvasElement} input_el - Input element (image or canvas).
- * @param {ort.InferenceSession} session - Loaded ONNX model session.
+ *
+ * Replicates the approach from nomi30701/yolo-multi-task-onnxruntime-web:
+ * - Crop mask at bbox region in mask-space (160×160)
+ * - Resize only that crop to bbox size on the overlay
+ *
+ * @param {HTMLImageElement | HTMLCanvasElement} input_el - Input element.
+ * @param {ort.InferenceSession} session - ONNX model session.
  * @param {Config} config - Model configuration.
- * @param {HTMLCanvasElement} overlay_el - Canvas to draw overlay/masks.
- * @returns {Promise<[Box[], string]>} Array of detected objects and inference time (ms) as string.
+ * @param {HTMLCanvasElement} overlay_el - Canvas for overlay/masks.
+ * @returns {Promise<[Box[], string]>} Detected objects and inference time.
  */
 export async function inference_pipeline(
   input_el: HTMLImageElement | HTMLCanvasElement,
@@ -29,15 +34,19 @@ export async function inference_pipeline(
   const input_width = config.input_shape[3];
   const input_height = config.input_shape[2];
 
-  // Pre-process input image using fixed size
-  const [src_mat_preProcessed, xRatio, yRatio] = preProcess(src_mat, input_width, input_height);
+  // Pre-process: resize, pad, normalize
+  const [src_mat_preProcessed, meta] = preProcess(
+    src_mat,
+    input_width,
+    input_height,
+    overlay_el.width,
+    overlay_el.height
+  );
+  const { xRatio, yRatio } = meta;
   src_mat.delete();
 
   const input_tensor = new ort.Tensor("float32", src_mat_preProcessed.data32F, [
-    1,
-    3,
-    input_height,
-    input_width,
+    1, 3, input_height, input_width,
   ]);
   src_mat_preProcessed.delete();
 
@@ -56,7 +65,7 @@ export async function inference_pipeline(
 
   const NUM_PREDICTIONS = output0.dims[2];
   const NUM_BBOX_ATTRS = 4;
-  const NUM_SCORES = classes.length; // 80
+  const NUM_SCORES = classes.length;
   const NUM_MASK_WEIGHTS = 32;
 
   const predictionsData = output0.data as Float32Array;
@@ -76,6 +85,7 @@ export async function inference_pipeline(
   output0.dispose();
   output1.dispose();
 
+  // ── Post-process: extract bounding boxes ──
   const results: Box[] = [];
   for (let i = 0; i < NUM_PREDICTIONS; i++) {
     let maxScore = 0;
@@ -108,128 +118,138 @@ export async function inference_pipeline(
     });
   }
 
-  // Apply Non-Maximum Suppression (NMS)
+  // Apply NMS
   const scoresArray = results.map((r) => r.score);
   const selected_indices = applyNMS(results, scoresArray, config.iou_threshold);
   const filtered_results = selected_indices.map((i) => results[i]);
 
-  // Mask post-processing
+  // ── Mask post-processing (replicating reference repo approach) ──
   if (filtered_results.length > 0) {
+    const matsToDelete: cv.Mat[] = [];
+
     const proto_mask_mat = cv.matFromArray(
       MASK_CHANNELS,
       MASK_HEIGHT * MASK_WIDTH,
       cv.CV_32F,
       proto_mask
     );
+    matsToDelete.push(proto_mask_mat);
 
-    const NUM_FILTERED_RESULTS = filtered_results.length;
-    const maskWeightsArray = filtered_results.map((r) => Array.from(r.mask_weights)).flat();
-    const mask_weights_mat = cv.matFromArray(
-      NUM_FILTERED_RESULTS,
-      MASK_CHANNELS,
-      cv.CV_32F,
-      maskWeightsArray
-    );
-    const weights_mul_proto_mat = new cv.Mat();
-    cv.gemm(
-      mask_weights_mat,
-      proto_mask_mat,
-      1.0,
-      new cv.Mat(),
-      0.0,
-      weights_mul_proto_mat
-    );
+    try {
+      const NUM_FILTERED = filtered_results.length;
 
-    proto_mask_mat.delete();
-    mask_weights_mat.delete();
-
-    // Apply sigmoid activation
-    const mask_sigmoid_mat = new cv.Mat();
-    const ones_mat = cv.Mat.ones(weights_mul_proto_mat.size(), cv.CV_32F);
-    cv.multiply(weights_mul_proto_mat, ones_mat, mask_sigmoid_mat, -1);
-    cv.exp(mask_sigmoid_mat, mask_sigmoid_mat);
-    cv.add(mask_sigmoid_mat, ones_mat, mask_sigmoid_mat);
-    cv.divide(ones_mat, mask_sigmoid_mat, mask_sigmoid_mat);
-
-    ones_mat.delete();
-    weights_mul_proto_mat.delete();
-
-    // Prepare overlay canvas for masks
-    const overlay_mat = new cv.Mat(
-      overlay_el.height,
-      overlay_el.width,
-      cv.CV_8UC4,
-      new cv.Scalar(0, 0, 0, 0)
-    );
-
-    for (let i = 0; i < NUM_FILTERED_RESULTS; i++) {
-      // Reshape the mask for the current detection
-      const mask = mask_sigmoid_mat.row(i).data32F;
-      const mask_mat = cv.matFromArray(MASK_HEIGHT, MASK_WIDTH, cv.CV_32F, mask);
-
-      // Upsample the mask to the overlay canvas size
-      const mask_resized_mat = new cv.Mat();
-      cv.resize(
-        mask_mat,
-        mask_resized_mat,
-        new cv.Size(overlay_el.width, overlay_el.height),
-        0,
-        0,
-        cv.INTER_LINEAR
+      // Build weights matrix from filtered results
+      const maskWeights = new Float32Array(NUM_FILTERED * MASK_CHANNELS);
+      for (let i = 0; i < NUM_FILTERED; i++) {
+        for (let c = 0; c < MASK_CHANNELS; c++) {
+          maskWeights[i * MASK_CHANNELS + c] = filtered_results[i].mask_weights[c];
+        }
+      }
+      const mask_weights_mat = cv.matFromArray(
+        NUM_FILTERED, MASK_CHANNELS, cv.CV_32F, maskWeights
       );
+      matsToDelete.push(mask_weights_mat);
 
-      // Threshold the mask
-      const mask_binary_mat = new cv.Mat();
-      const mask_binary_u8_mat = new cv.Mat();
-      cv.threshold(mask_resized_mat, mask_binary_mat, 0.5, 1, cv.THRESH_BINARY);
-      mask_binary_mat.convertTo(mask_binary_u8_mat, cv.CV_8U);
+      // weights × proto_mask → [N, 160*160]
+      const weights_mul_proto = new cv.Mat();
+      const emptyMat = new cv.Mat();
+      matsToDelete.push(weights_mul_proto, emptyMat);
+      cv.gemm(mask_weights_mat, proto_mask_mat, 1.0, emptyMat, 0.0, weights_mul_proto);
 
-      // Crop and color the mask according to the detected bounding box
-      const [x, y, w, h] = filtered_results[i].bbox;
-      const x1 = Math.max(0, x);
-      const y1 = Math.max(0, y);
-      const x2 = Math.min(overlay_el.width, x + w);
-      const y2 = Math.min(overlay_el.height, y + h);
+      // Sigmoid activation
+      const mask_sigmoid = new cv.Mat();
+      const ones = cv.Mat.ones(weights_mul_proto.rows, weights_mul_proto.cols, cv.CV_32F);
+      const neg = new cv.Mat(weights_mul_proto.rows, weights_mul_proto.cols, cv.CV_32F, new cv.Scalar(-1));
+      matsToDelete.push(mask_sigmoid, ones, neg);
+      cv.multiply(weights_mul_proto, neg, mask_sigmoid);
+      cv.exp(mask_sigmoid, mask_sigmoid);
+      cv.add(mask_sigmoid, ones, mask_sigmoid);
+      cv.divide(ones, mask_sigmoid, mask_sigmoid);
 
-      const roi = mask_binary_u8_mat.roi(new cv.Rect(x1, y1, x2 - x1, y2 - y1));
-      const color = Colors.getColor(filtered_results[i].class_idx, 0.5); // Use 50% opacity for mask
-      const color_scalar = new cv.Scalar(
-        color[0],
-        color[1],
-        color[2],
-        color[3] * 255
+      // Create overlay
+      const overlay_mat = new cv.Mat(
+        overlay_el.height, overlay_el.width, cv.CV_8UC4, new cv.Scalar(0, 0, 0, 0)
       );
-      const mask_colored_mat = new cv.Mat(
-        roi.rows,
-        roi.cols,
-        cv.CV_8UC4,
-        color_scalar
-      );
-      mask_colored_mat.copyTo(
-        overlay_mat.roi(new cv.Rect(x1, y1, x2 - x1, y2 - y1)),
-        roi
-      );
+      matsToDelete.push(overlay_mat);
 
-      roi.delete();
-      mask_resized_mat.delete();
-      mask_binary_mat.delete();
-      mask_mat.delete();
-      mask_colored_mat.delete();
+      // Reusable mats for the loop
+      const maskResized = new cv.Mat();
+      const maskBinary = new cv.Mat();
+      const maskBinaryU8 = new cv.Mat();
+      matsToDelete.push(maskResized, maskBinary, maskBinaryU8);
+
+      const overlayW = overlay_el.width;
+      const overlayH = overlay_el.height;
+
+      for (let i = 0; i < NUM_FILTERED; i++) {
+        const rowMat = mask_sigmoid.row(i);
+        matsToDelete.push(rowMat);
+        const maskMat = cv.matFromArray(MASK_HEIGHT, MASK_WIDTH, cv.CV_32F, rowMat.data32F);
+        matsToDelete.push(maskMat);
+
+        const [bx, by, bw, bh] = filtered_results[i].bbox;
+
+        // Map bbox from overlay space → mask space (160×160) via model input space
+        // overlay_coord / xRatio → model coord, × (MASK_SIZE / INPUT_SIZE) → mask coord
+        // This correctly accounts for padding, unlike a direct overlayW mapping
+        const scaleX = MASK_WIDTH / (xRatio * input_width);
+        const scaleY = MASK_HEIGHT / (yRatio * input_height);
+
+        const maskX = Math.floor(Math.max(0, bx * scaleX));
+        const maskY = Math.floor(Math.max(0, by * scaleY));
+        const maskW = Math.ceil(Math.min(MASK_WIDTH - maskX, bw * scaleX));
+        const maskH = Math.ceil(Math.min(MASK_HEIGHT - maskY, bh * scaleY));
+
+        if (maskW <= 0 || maskH <= 0) continue;
+
+        // 2. Crop the small region from the 160×160 mask
+        const maskRoi = maskMat.roi(new cv.Rect(maskX, maskY, maskW, maskH));
+        matsToDelete.push(maskRoi);
+
+        // 3. Compute target position on the overlay
+        const targetX = Math.max(0, Math.floor(bx));
+        const targetY = Math.max(0, Math.floor(by));
+        const targetW = Math.min(overlayW - targetX, Math.ceil(bw));
+        const targetH = Math.min(overlayH - targetY, Math.ceil(bh));
+
+        if (targetW <= 0 || targetH <= 0) continue;
+
+        // 4. Resize the cropped mask to the target bbox size
+        cv.resize(maskRoi, maskResized, new cv.Size(targetW, targetH), 0, 0, cv.INTER_LINEAR);
+
+        // 5. Binarize
+        cv.threshold(maskResized, maskBinary, 0.5, 255, cv.THRESH_BINARY);
+        maskBinary.convertTo(maskBinaryU8, cv.CV_8U);
+
+        // 6. Colorize and copy to overlay
+        const color = Colors.getColor(filtered_results[i].class_idx, 0.6);
+        const colorScalar = new cv.Scalar(color[0], color[1], color[2], color[3] * 255);
+        const maskColored = new cv.Mat(targetH, targetW, cv.CV_8UC4, colorScalar);
+        matsToDelete.push(maskColored);
+
+        const overlayRoi = overlay_mat.roi(new cv.Rect(targetX, targetY, targetW, targetH));
+        matsToDelete.push(overlayRoi);
+        maskColored.copyTo(overlayRoi, maskBinaryU8);
+      }
+
+      // Draw masks on overlay canvas
+      const imgData = new ImageData(
+        new Uint8ClampedArray(overlay_mat.data),
+        overlayW,
+        overlayH
+      );
+      const ctx = overlay_el.getContext("2d");
+      if (ctx) {
+        ctx.clearRect(0, 0, overlayW, overlayH);
+        ctx.putImageData(imgData, 0, 0);
+      }
+    } catch (error) {
+      console.error("Error processing masks:", error);
+    } finally {
+      matsToDelete.forEach((mat) => {
+        if (mat && !mat.isDeleted()) mat.delete();
+      });
     }
-    mask_sigmoid_mat.delete();
-
-    // Draw the final masks on the overlay canvas
-    const imgData = new ImageData(
-      new Uint8ClampedArray(overlay_mat.data),
-      overlay_el.width,
-      overlay_el.height
-    );
-    const ctx = overlay_el.getContext("2d");
-    if (ctx) {
-      ctx.clearRect(0, 0, overlay_el.width, overlay_el.height);
-      ctx.putImageData(imgData, 0, 0);
-    }
-    overlay_mat.delete();
   }
 
   return [filtered_results, (end - start).toFixed(2)];
