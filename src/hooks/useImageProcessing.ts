@@ -39,17 +39,20 @@ export function useImageProcessing() {
     const naturalW = imgRef.current.naturalWidth;
     const naturalH = imgRef.current.naturalHeight;
 
-    // Draw the full-resolution image onto the input canvas
-    // so cv.imread reads pixels at natural size, not CSS display size
+    // Draw image at native resolution onto inputCanvas so cv.imread
+    // always reads full-resolution pixels, regardless of CSS display size.
+    // Without this, mobile devices get a tiny CSS-sized input (~350px)
+    // which loses detail when upscaled to 640×640, causing fewer detections.
     inputCanvasRef.current.width = naturalW;
     inputCanvasRef.current.height = naturalH;
-    const inputCtx = inputCanvasRef.current.getContext("2d", { willReadFrequently: true });
+    const inputCtx = inputCanvasRef.current.getContext("2d");
     if (!inputCtx) return;
     inputCtx.drawImage(imgRef.current, 0, 0, naturalW, naturalH);
 
-    // Size the overlay to match the displayed image dimensions
-    overlayRef.current.width = imgRef.current.width;
-    overlayRef.current.height = imgRef.current.height;
+    // Set overlay canvas to native resolution (like reference repo).
+    // CSS handles visual scaling to fit the display.
+    overlayRef.current.width = naturalW;
+    overlayRef.current.height = naturalH;
 
     const [results, resultsInferenceTime] = await inference_pipeline(
       inputCanvasRef.current,
