@@ -19,8 +19,8 @@ interface Config {
  * - After post-processing, rescale bbox coords from model space → overlay space
  * - Mask: rescale bbox from model space → mask space (160×160), crop, resize to display bbox
  *
- * All cv.Mat and ort.Tensor objects are tracked and cleaned up in finally blocks
- * to prevent memory leaks, even on errors.
+ * Memory: early pipeline resources (src_mat, blob, tensors) are freed inline
+ * for camera performance. Mask processing mats use a tracked array + finally.
  *
  * @param {HTMLImageElement | HTMLCanvasElement} input_el - Input element.
  * @param {ort.InferenceSession} session - ONNX model session.
@@ -34,122 +34,127 @@ export async function inference_pipeline(
   config: Config,
   overlay_el: HTMLCanvasElement
 ): Promise<[Box[], string]> {
-  // Track all resources for cleanup
-  const matsToDelete: cv.Mat[] = [];
-  let input_tensor: ort.Tensor | null = null;
-  let outputs: ort.InferenceSession.OnnxValueMapType | null = null;
+  const src_mat = cv.imread(input_el);
 
-  try {
-    const src_mat = cv.imread(input_el);
-    matsToDelete.push(src_mat);
+  const modelW = config.input_shape[3];
+  const modelH = config.input_shape[2];
 
-    const modelW = config.input_shape[3];
-    const modelH = config.input_shape[2];
+  // Pre-process: resize to 640×640 and normalize
+  const blob = preProcess(src_mat, modelW, modelH);
+  src_mat.delete(); // Free immediately — no longer needed
 
-    // Pre-process: resize to 640×640 and normalize
-    const blob = preProcess(src_mat, modelW, modelH);
-    matsToDelete.push(blob);
+  const input_tensor = new ort.Tensor("float32", blob.data32F, [
+    1, 3, modelH, modelW,
+  ]);
+  blob.delete(); // Free immediately — data copied into tensor
 
-    input_tensor = new ort.Tensor("float32", blob.data32F, [
-      1, 3, modelH, modelW,
-    ]);
+  // Run inference
+  const start = performance.now();
+  const output = await session.run({ images: input_tensor });
+  const end = performance.now();
+  input_tensor.dispose(); // Free immediately
 
-    // Run inference
-    const start = performance.now();
-    outputs = await session.run({ images: input_tensor });
-    const end = performance.now();
+  const output0 = output.output0;
+  const output1 = output.output1;
+  if (!output0 || !output1) {
+    console.error("Invalid model output");
+    // Dispose whichever output exists
+    output0?.dispose();
+    output1?.dispose();
+    return [[], "0"];
+  }
 
-    const output0 = outputs.output0;
-    const output1 = outputs.output1;
-    if (!output0 || !output1) {
-      console.error("Invalid model output");
-      return [[], "0"];
+  const NUM_PREDICTIONS = output0.dims[2];
+  const NUM_BBOX_ATTRS = 4;
+  const activeClasses = config.classes ?? defaultClasses;
+  const NUM_SCORES = activeClasses.length;
+  const NUM_MASK_WEIGHTS = 32;
+
+  const predictionsData = output0.data as Float32Array;
+  const bbox_data = predictionsData.subarray(0, NUM_PREDICTIONS * NUM_BBOX_ATTRS);
+  const scores_data = predictionsData.subarray(
+    NUM_PREDICTIONS * NUM_BBOX_ATTRS,
+    NUM_PREDICTIONS * (NUM_BBOX_ATTRS + NUM_SCORES)
+  );
+  const mask_weights_data = predictionsData.subarray(
+    NUM_PREDICTIONS * (NUM_BBOX_ATTRS + NUM_SCORES)
+  );
+
+  const proto_mask = output1.data as Float32Array;
+  const MASK_CHANNELS = output1.dims[1];
+  const MASK_HEIGHT = output1.dims[2];
+  const MASK_WIDTH = output1.dims[3];
+  // Free output tensors immediately — data extracted into typed arrays
+  output0.dispose();
+  output1.dispose();
+
+  // Overlay (display) dimensions
+  const overlayW = overlay_el.width;
+  const overlayH = overlay_el.height;
+
+  // Simple scale factors: model space → overlay space
+  const xRatio = overlayW / modelW;
+  const yRatio = overlayH / modelH;
+
+  // ── Post-process: extract bounding boxes ──
+  const results: Box[] = [];
+  for (let i = 0; i < NUM_PREDICTIONS; i++) {
+    let maxScore = 0;
+    let class_idx = -1;
+
+    for (let c = 0; c < NUM_SCORES; c++) {
+      const score = scores_data[i + c * NUM_PREDICTIONS];
+      if (score > maxScore) {
+        maxScore = score;
+        class_idx = c;
+      }
+    }
+    if (maxScore <= config.score_threshold) continue;
+
+    // Model-space bbox (center x, center y, w, h)
+    const cx = bbox_data[i];
+    const cy = bbox_data[i + NUM_PREDICTIONS];
+    const bw_model = bbox_data[i + NUM_PREDICTIONS * 2];
+    const bh_model = bbox_data[i + NUM_PREDICTIONS * 3];
+
+    // Rescale from model space → overlay display space
+    const w = bw_model * xRatio;
+    const h = bh_model * yRatio;
+    const x = cx * xRatio - 0.5 * w;
+    const y = cy * yRatio - 0.5 * h;
+
+    const mask_weights = new Float32Array(NUM_MASK_WEIGHTS);
+    for (let c = 0; c < NUM_MASK_WEIGHTS; c++) {
+      mask_weights[c] = mask_weights_data[i + c * NUM_PREDICTIONS];
     }
 
-    const NUM_PREDICTIONS = output0.dims[2];
-    const NUM_BBOX_ATTRS = 4;
-    const activeClasses = config.classes ?? defaultClasses;
-    const NUM_SCORES = activeClasses.length;
-    const NUM_MASK_WEIGHTS = 32;
+    results.push({
+      bbox: [x, y, w, h],
+      class_idx,
+      score: maxScore,
+      mask_weights,
+    });
+  }
 
-    const predictionsData = output0.data as Float32Array;
-    const bbox_data = predictionsData.subarray(0, NUM_PREDICTIONS * NUM_BBOX_ATTRS);
-    const scores_data = predictionsData.subarray(
-      NUM_PREDICTIONS * NUM_BBOX_ATTRS,
-      NUM_PREDICTIONS * (NUM_BBOX_ATTRS + NUM_SCORES)
+  // Apply NMS
+  const scoresArray = results.map((r) => r.score);
+  const selected_indices = applyNMS(results, scoresArray, config.iou_threshold);
+  const filtered_results = selected_indices.map((i) => results[i]);
+
+  // ── Mask post-processing ──
+  // Uses tracked array + try/finally for safe cleanup of many small mats
+  if (filtered_results.length > 0) {
+    const matsToDelete: cv.Mat[] = [];
+
+    const proto_mask_mat = cv.matFromArray(
+      MASK_CHANNELS,
+      MASK_HEIGHT * MASK_WIDTH,
+      cv.CV_32F,
+      proto_mask
     );
-    const mask_weights_data = predictionsData.subarray(
-      NUM_PREDICTIONS * (NUM_BBOX_ATTRS + NUM_SCORES)
-    );
+    matsToDelete.push(proto_mask_mat);
 
-    const proto_mask = output1.data as Float32Array;
-    const MASK_CHANNELS = output1.dims[1];
-    const MASK_HEIGHT = output1.dims[2];
-    const MASK_WIDTH = output1.dims[3];
-
-    // Overlay (display) dimensions
-    const overlayW = overlay_el.width;
-    const overlayH = overlay_el.height;
-
-    // Simple scale factors: model space → overlay space
-    const xRatio = overlayW / modelW;
-    const yRatio = overlayH / modelH;
-
-    // ── Post-process: extract bounding boxes ──
-    const results: Box[] = [];
-    for (let i = 0; i < NUM_PREDICTIONS; i++) {
-      let maxScore = 0;
-      let class_idx = -1;
-
-      for (let c = 0; c < NUM_SCORES; c++) {
-        const score = scores_data[i + c * NUM_PREDICTIONS];
-        if (score > maxScore) {
-          maxScore = score;
-          class_idx = c;
-        }
-      }
-      if (maxScore <= config.score_threshold) continue;
-
-      // Model-space bbox (center x, center y, w, h)
-      const cx = bbox_data[i];
-      const cy = bbox_data[i + NUM_PREDICTIONS];
-      const bw_model = bbox_data[i + NUM_PREDICTIONS * 2];
-      const bh_model = bbox_data[i + NUM_PREDICTIONS * 3];
-
-      // Rescale from model space → overlay display space
-      const w = bw_model * xRatio;
-      const h = bh_model * yRatio;
-      const x = cx * xRatio - 0.5 * w;
-      const y = cy * yRatio - 0.5 * h;
-
-      const mask_weights = new Float32Array(NUM_MASK_WEIGHTS);
-      for (let c = 0; c < NUM_MASK_WEIGHTS; c++) {
-        mask_weights[c] = mask_weights_data[i + c * NUM_PREDICTIONS];
-      }
-
-      results.push({
-        bbox: [x, y, w, h],
-        class_idx,
-        score: maxScore,
-        mask_weights,
-      });
-    }
-
-    // Apply NMS
-    const scoresArray = results.map((r) => r.score);
-    const selected_indices = applyNMS(results, scoresArray, config.iou_threshold);
-    const filtered_results = selected_indices.map((i) => results[i]);
-
-    // ── Mask post-processing ──
-    if (filtered_results.length > 0) {
-      const proto_mask_mat = cv.matFromArray(
-        MASK_CHANNELS,
-        MASK_HEIGHT * MASK_WIDTH,
-        cv.CV_32F,
-        proto_mask
-      );
-      matsToDelete.push(proto_mask_mat);
-
+    try {
       const NUM_FILTERED = filtered_results.length;
 
       // Build weights matrix from filtered results
@@ -253,25 +258,14 @@ export async function inference_pipeline(
         ctx.clearRect(0, 0, overlayW, overlayH);
         ctx.putImageData(imgData, 0, 0);
       }
-    }
-
-    return [filtered_results, (end - start).toFixed(2)];
-  } catch (error) {
-    console.error("Inference pipeline error:", error);
-    return [[], "0"];
-  } finally {
-    // Clean up all cv.Mat objects
-    matsToDelete.forEach((mat) => {
-      if (mat && !mat.isDeleted()) mat.delete();
-    });
-    // Clean up ORT tensors
-    if (input_tensor) input_tensor.dispose();
-    if (outputs) {
-      for (const key in outputs) {
-        if (outputs[key] && typeof outputs[key].dispose === "function") {
-          outputs[key].dispose();
-        }
-      }
+    } catch (error) {
+      console.error("Error processing masks:", error);
+    } finally {
+      matsToDelete.forEach((mat) => {
+        if (mat && !mat.isDeleted()) mat.delete();
+      });
     }
   }
+
+  return [filtered_results, (end - start).toFixed(2)];
 }
