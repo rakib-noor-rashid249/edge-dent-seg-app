@@ -42,9 +42,17 @@ export async function model_loader(
   }
 
   try {
+    // Suppress harmless ONNX Runtime warnings (Unknown CPU vendor,
+    // nodes not assigned to preferred EP) — only show actual errors.
+    ort.env.logLevel = "error";
+
     const yolo_model = await ort.InferenceSession.create(model_path, {
       executionProviders: [device],
       graphOptimizationLevel: "all",
+      // Severity 3 = Error. Suppresses native WASM warnings like
+      // "Some nodes were not assigned to the preferred execution providers".
+      // ort.env.logLevel handles JS layer; this handles the WASM layer.
+      logSeverityLevel: 3,
     });
 
     // Warm-up inference
