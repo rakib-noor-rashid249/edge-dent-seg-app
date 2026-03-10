@@ -2,122 +2,39 @@ import cv from '@techstark/opencv-js';
 import { Box } from './types';
 
 /**
- * Preprocessing metadata needed for mask post-processing.
- */
-export interface PreProcessMeta {
-  xRatio: number;
-  yRatio: number;
-  /** Width of image after stride-alignment, before padding */
-  divWidth: number;
-  /** Height of image after stride-alignment, before padding */
-  divHeight: number;
-  /** Size of the padded square (max of divWidth, divHeight) */
-  maxDim: number;
-}
-
-/**
- * Pre process input image.
+ * Pre-process input image for YOLO inference.
  *
- * Resize and normalize image.
+ * Directly resizes to model input size (e.g. 640×640) and normalizes to [0, 1].
+ * No stride-alignment or padding — keeps it simple and avoids creating
+ * enormous intermediate matrices for large images.
  *
- * @param {cv.Mat} mat - Pre process yolo model input image.
- * @param {number} input_width - Yolo model input width (e.g. 640).
- * @param {number} input_height - Yolo model input height (e.g. 640).
- * @param {number} overlayWidth - Output overlay canvas width.
- * @param {number} overlayHeight - Output overlay canvas height.
- * @returns {[cv.Mat, PreProcessMeta]} Processed input mat and metadata.
+ * @param {cv.Mat} mat - Input image (RGBA from cv.imread).
+ * @param {number} modelWidth - Model input width (e.g. 640).
+ * @param {number} modelHeight - Model input height (e.g. 640).
+ * @returns {cv.Mat} Normalized blob ready for inference.
  */
 export function preProcess(
   mat: cv.Mat,
-  input_width: number,
-  input_height: number,
-  overlayWidth: number,
-  overlayHeight: number
-): [cv.Mat, PreProcessMeta] {
+  modelWidth: number,
+  modelHeight: number
+): cv.Mat {
+  // RGBA → RGB
   cv.cvtColor(mat, mat, cv.COLOR_RGBA2RGB);
 
-  // Resize to dimensions divisible by 32
-  const [div_width, div_height] = divStride(32, mat.cols, mat.rows);
-  cv.resize(mat, mat, new cv.Size(div_width, div_height));
+  // Direct resize to model input size
+  cv.resize(mat, mat, new cv.Size(modelWidth, modelHeight));
 
-  // Padding to square
-  const max_dim = Math.max(div_width, div_height);
-  const right_pad = max_dim - div_width;
-  const bottom_pad = max_dim - div_height;
-  cv.copyMakeBorder(
-    mat,
-    mat,
-    0,
-    bottom_pad,
-    0,
-    right_pad,
-    cv.BORDER_CONSTANT,
-    new cv.Scalar(0, 0, 0)
-  );
-
-  // Resize to input dimensions and normalize to [0, 1]
-  const preProcessed = cv.blobFromImage(
+  // Normalize to [0, 1] and create blob
+  const blob = cv.blobFromImage(
     mat,
     1 / 255.0,
-    new cv.Size(input_width, input_height),
+    new cv.Size(modelWidth, modelHeight),
     new cv.Scalar(0, 0, 0),
     false,
     false
   );
 
-  // Map model output coordinates → overlay display coordinates
-  // Model outputs in [0, input_width/input_height] space (the padded square resized to 640)
-  // We need to go: model coords → padded square → original (unpadded) → overlay display
-  const xRatio = (overlayWidth / div_width) * (max_dim / input_width);
-  const yRatio = (overlayHeight / div_height) * (max_dim / input_height);
-
-  return [preProcessed, { xRatio, yRatio, divWidth: div_width, divHeight: div_height, maxDim: max_dim }];
-}
-
-/**
- * Pre process input image dynamically.
- *
- * Normalize image.
- *
- * @param {cv.Mat} mat - Pre process yolo model input image.
- * @returns {[cv.Mat, number, number]} Processed input mat and its dimensions.
- */
-export function preProcess_dynamic(mat: cv.Mat): [cv.Mat, number, number] {
-  cv.cvtColor(mat, mat, cv.COLOR_RGBA2RGB);
-
-  // Resize image to dimensions divisible by 32
-  const [div_width, div_height] = divStride(32, mat.cols, mat.rows);
-  // Resize and normalize to [0, 1]
-  const preProcessed = cv.blobFromImage(
-    mat,
-    1 / 255.0,
-    new cv.Size(div_width, div_height),
-    new cv.Scalar(0, 0, 0),
-    false,
-    false
-  );
-  return [preProcessed, div_width, div_height];
-}
-
-/**
- * Return width and height modified to be divisible by stride.
- * @param {number} stride - Stride value.
- * @param {number} width - Image width.
- * @param {number} height - Image height.
- * @returns {[number, number]} [width, height] divisible by stride.
- */
-export function divStride(stride: number, width: number, height: number): [number, number] {
-  width =
-    width % stride >= stride / 2
-      ? (Math.floor(width / stride) + 1) * stride
-      : Math.floor(width / stride) * stride;
-
-  height =
-    height % stride >= stride / 2
-      ? (Math.floor(height / stride) + 1) * stride
-      : Math.floor(height / stride) * stride;
-
-  return [width, height];
+  return blob;
 }
 
 /**

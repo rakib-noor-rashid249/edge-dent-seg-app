@@ -14,9 +14,10 @@ interface Config {
 /**
  * Performs inference using the ONNX model and post-processes the results.
  *
- * Replicates the approach from nomi30701/yolo-multi-task-onnxruntime-web:
- * - Crop mask at bbox region in mask-space (160×160)
- * - Resize only that crop to bbox size on the overlay
+ * Approach (matching pranta-barua007/yolo11s-seg-web-onnx):
+ * - cv.imread + direct resize to 640×640 (no divStride/padding)
+ * - After post-processing, rescale bbox coords from model space → overlay space
+ * - Mask: rescale bbox from model space → mask space (160×160), crop, resize to display bbox
  *
  * @param {HTMLImageElement | HTMLCanvasElement} input_el - Input element.
  * @param {ort.InferenceSession} session - ONNX model session.
@@ -32,24 +33,17 @@ export async function inference_pipeline(
 ): Promise<[Box[], string]> {
   const src_mat = cv.imread(input_el);
 
-  const input_width = config.input_shape[3];
-  const input_height = config.input_shape[2];
+  const modelW = config.input_shape[3];
+  const modelH = config.input_shape[2];
 
-  // Pre-process: resize, pad, normalize
-  const [src_mat_preProcessed, meta] = preProcess(
-    src_mat,
-    input_width,
-    input_height,
-    overlay_el.width,
-    overlay_el.height
-  );
-  const { xRatio, yRatio } = meta;
+  // Pre-process: resize to 640×640 and normalize
+  const blob = preProcess(src_mat, modelW, modelH);
   src_mat.delete();
 
-  const input_tensor = new ort.Tensor("float32", src_mat_preProcessed.data32F, [
-    1, 3, input_height, input_width,
+  const input_tensor = new ort.Tensor("float32", blob.data32F, [
+    1, 3, modelH, modelW,
   ]);
-  src_mat_preProcessed.delete();
+  blob.delete();
 
   // Run inference
   const start = performance.now();
@@ -87,6 +81,14 @@ export async function inference_pipeline(
   output0.dispose();
   output1.dispose();
 
+  // Overlay (display) dimensions
+  const overlayW = overlay_el.width;
+  const overlayH = overlay_el.height;
+
+  // Simple scale factors: model space → overlay space
+  const xRatio = overlayW / modelW;
+  const yRatio = overlayH / modelH;
+
   // ── Post-process: extract bounding boxes ──
   const results: Box[] = [];
   for (let i = 0; i < NUM_PREDICTIONS; i++) {
@@ -102,10 +104,17 @@ export async function inference_pipeline(
     }
     if (maxScore <= config.score_threshold) continue;
 
-    const w = bbox_data[i + NUM_PREDICTIONS * 2] * xRatio;
-    const h = bbox_data[i + NUM_PREDICTIONS * 3] * yRatio;
-    const x = bbox_data[i] * xRatio - 0.5 * w;
-    const y = bbox_data[i + NUM_PREDICTIONS] * yRatio - 0.5 * h;
+    // Model-space bbox (center x, center y, w, h)
+    const cx = bbox_data[i];
+    const cy = bbox_data[i + NUM_PREDICTIONS];
+    const bw_model = bbox_data[i + NUM_PREDICTIONS * 2];
+    const bh_model = bbox_data[i + NUM_PREDICTIONS * 3];
+
+    // Rescale from model space → overlay display space
+    const w = bw_model * xRatio;
+    const h = bh_model * yRatio;
+    const x = cx * xRatio - 0.5 * w;
+    const y = cy * yRatio - 0.5 * h;
 
     const mask_weights = new Float32Array(NUM_MASK_WEIGHTS);
     for (let c = 0; c < NUM_MASK_WEIGHTS; c++) {
@@ -125,7 +134,7 @@ export async function inference_pipeline(
   const selected_indices = applyNMS(results, scoresArray, config.iou_threshold);
   const filtered_results = selected_indices.map((i) => results[i]);
 
-  // ── Mask post-processing (replicating reference repo approach) ──
+  // ── Mask post-processing ──
   if (filtered_results.length > 0) {
     const matsToDelete: cv.Mat[] = [];
 
@@ -170,7 +179,7 @@ export async function inference_pipeline(
 
       // Create overlay
       const overlay_mat = new cv.Mat(
-        overlay_el.height, overlay_el.width, cv.CV_8UC4, new cv.Scalar(0, 0, 0, 0)
+        overlayH, overlayW, cv.CV_8UC4, new cv.Scalar(0, 0, 0, 0)
       );
       matsToDelete.push(overlay_mat);
 
@@ -180,8 +189,9 @@ export async function inference_pipeline(
       const maskBinaryU8 = new cv.Mat();
       matsToDelete.push(maskResized, maskBinary, maskBinaryU8);
 
-      const overlayW = overlay_el.width;
-      const overlayH = overlay_el.height;
+      // Scale factors: model space → mask space (160×160)
+      const maskScaleX = MASK_WIDTH / modelW;
+      const maskScaleY = MASK_HEIGHT / modelH;
 
       for (let i = 0; i < NUM_FILTERED; i++) {
         const rowMat = mask_sigmoid.row(i);
@@ -191,24 +201,20 @@ export async function inference_pipeline(
 
         const [bx, by, bw, bh] = filtered_results[i].bbox;
 
-        // Map bbox from overlay space → mask space (160×160) via model input space
-        // overlay_coord / xRatio → model coord, × (MASK_SIZE / INPUT_SIZE) → mask coord
-        // This correctly accounts for padding, unlike a direct overlayW mapping
-        const scaleX = MASK_WIDTH / (xRatio * input_width);
-        const scaleY = MASK_HEIGHT / (yRatio * input_height);
-
-        const maskX = Math.floor(Math.max(0, bx * scaleX));
-        const maskY = Math.floor(Math.max(0, by * scaleY));
-        const maskW = Math.ceil(Math.min(MASK_WIDTH - maskX, bw * scaleX));
-        const maskH = Math.ceil(Math.min(MASK_HEIGHT - maskY, bh * scaleY));
+        // Map bbox from overlay space → model space → mask space (160×160)
+        // overlay_coord / xRatio → model coord, × maskScale → mask coord
+        const maskX = Math.floor(Math.max(0, (bx / xRatio) * maskScaleX));
+        const maskY = Math.floor(Math.max(0, (by / yRatio) * maskScaleY));
+        const maskW = Math.ceil(Math.min(MASK_WIDTH - maskX, (bw / xRatio) * maskScaleX));
+        const maskH = Math.ceil(Math.min(MASK_HEIGHT - maskY, (bh / yRatio) * maskScaleY));
 
         if (maskW <= 0 || maskH <= 0) continue;
 
-        // 2. Crop the small region from the 160×160 mask
+        // Crop the small region from the 160×160 mask
         const maskRoi = maskMat.roi(new cv.Rect(maskX, maskY, maskW, maskH));
         matsToDelete.push(maskRoi);
 
-        // 3. Compute target position on the overlay
+        // Compute target position on the overlay
         const targetX = Math.max(0, Math.floor(bx));
         const targetY = Math.max(0, Math.floor(by));
         const targetW = Math.min(overlayW - targetX, Math.ceil(bw));
@@ -216,14 +222,14 @@ export async function inference_pipeline(
 
         if (targetW <= 0 || targetH <= 0) continue;
 
-        // 4. Resize the cropped mask to the target bbox size
+        // Resize the cropped mask to the target bbox size
         cv.resize(maskRoi, maskResized, new cv.Size(targetW, targetH), 0, 0, cv.INTER_LINEAR);
 
-        // 5. Binarize
+        // Binarize
         cv.threshold(maskResized, maskBinary, 0.5, 255, cv.THRESH_BINARY);
         maskBinary.convertTo(maskBinaryU8, cv.CV_8U);
 
-        // 6. Colorize and copy to overlay
+        // Colorize and copy to overlay
         const color = Colors.getColor(filtered_results[i].class_idx, 0.6);
         const colorScalar = new cv.Scalar(color[0], color[1], color[2], color[3] * 255);
         const maskColored = new cv.Mat(targetH, targetW, cv.CV_8UC4, colorScalar);
