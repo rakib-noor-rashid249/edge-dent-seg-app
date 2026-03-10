@@ -34,18 +34,28 @@ export function useImageProcessing() {
   };
 
   const processImage = async (session: InferenceSession, config: Config) => {
-    if (!imgRef.current || !overlayRef.current || !session) return;
+    if (!imgRef.current || !overlayRef.current || !inputCanvasRef.current || !session) return;
 
-    // Set overlay canvas to image's native resolution (like reference repo).
-    // CSS handles visual scaling. The internal resolution must match
-    // naturalWidth/naturalHeight so bbox coordinates map correctly.
-    overlayRef.current.width = imgRef.current.naturalWidth;
-    overlayRef.current.height = imgRef.current.naturalHeight;
+    const naturalW = imgRef.current.naturalWidth;
+    const naturalH = imgRef.current.naturalHeight;
 
-    // Pass imgRef directly — cv.imread reads at whatever size, but
-    // preProcess resizes to 640×640 anyway, so input size doesn't matter.
+    // Draw image at native resolution onto inputCanvas so cv.imread
+    // always reads full-resolution pixels, regardless of CSS display size.
+    // Without this, mobile devices get a tiny CSS-sized input (~350px)
+    // which loses detail when upscaled to 640×640, causing fewer detections.
+    inputCanvasRef.current.width = naturalW;
+    inputCanvasRef.current.height = naturalH;
+    const inputCtx = inputCanvasRef.current.getContext("2d");
+    if (!inputCtx) return;
+    inputCtx.drawImage(imgRef.current, 0, 0, naturalW, naturalH);
+
+    // Set overlay canvas to native resolution (like reference repo).
+    // CSS handles visual scaling to fit the display.
+    overlayRef.current.width = naturalW;
+    overlayRef.current.height = naturalH;
+
     const [results, resultsInferenceTime] = await inference_pipeline(
-      imgRef.current,
+      inputCanvasRef.current,
       session,
       config,
       overlayRef.current
