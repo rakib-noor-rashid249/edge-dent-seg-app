@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useRef, useCallback, MutableRefObject } from "react";
-import { InferenceSession } from "onnxruntime-web";
-import { inference_pipeline } from "../utils/inference_pipeline";
 import { draw_bounding_boxes } from "../utils/draw_bounding_boxes";
 import { Box } from "../utils/types";
 
@@ -20,6 +18,57 @@ interface WorkerBox {
   score: number;
 }
 
+/**
+ * Converts worker result boxes to main-thread Box type.
+ * Adds empty mask_weights for type compatibility with draw functions.
+ */
+function toBoxes(workerBoxes: WorkerBox[]): Box[] {
+  return workerBoxes.map((b) => ({
+    ...b,
+    mask_weights: new Float32Array(0),
+  }));
+}
+
+/**
+ * Draws worker inference results (masks + bounding boxes) onto the overlay canvas.
+ */
+function drawWorkerResults(
+  msg: { maskPixels: Uint8ClampedArray | null; maskWidth: number; maskHeight: number; boxes: WorkerBox[]; inferenceTime: string },
+  overlayRef: React.RefObject<HTMLCanvasElement | null>,
+  maskSnapshotRef: React.MutableRefObject<ImageData | null>,
+  setDetails: (boxes: Box[]) => void,
+  setInferenceTime: (time: string) => void
+) {
+  // Draw masks on overlay canvas
+  if (msg.maskPixels && overlayRef.current) {
+    const ctx = overlayRef.current.getContext("2d");
+    if (ctx) {
+      const imgData = new ImageData(
+        new Uint8ClampedArray(msg.maskPixels) as Uint8ClampedArray<ArrayBuffer>,
+        msg.maskWidth,
+        msg.maskHeight
+      );
+      ctx.clearRect(0, 0, msg.maskWidth, msg.maskHeight);
+      ctx.putImageData(imgData, 0, 0);
+      maskSnapshotRef.current = ctx.getImageData(0, 0, msg.maskWidth, msg.maskHeight);
+    }
+  } else if (overlayRef.current) {
+    const ctx = overlayRef.current.getContext("2d");
+    if (ctx) {
+      ctx.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height);
+      maskSnapshotRef.current = null;
+    }
+  }
+
+  const boxes = toBoxes(msg.boxes as WorkerBox[]);
+  setDetails(boxes);
+  setInferenceTime(msg.inferenceTime);
+
+  if (overlayRef.current) {
+    draw_bounding_boxes(boxes, overlayRef.current);
+  }
+}
+
 export function useImageProcessing() {
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [inferenceTime, setInferenceTime] = useState<string>("0");
@@ -29,15 +78,34 @@ export function useImageProcessing() {
   const cameraRef = useRef<HTMLVideoElement>(null);
   const inputCanvasRef = useRef<HTMLCanvasElement>(null);
   const openImageRef = useRef<HTMLInputElement>(null);
-  // Snapshot of the mask-only canvas state (after inference, before bounding boxes)
   const maskSnapshotRef = useRef<ImageData | null>(null);
 
   // ── Worker back-pressure flag ──
-  // Prevents queuing frames when the worker is still processing the previous one.
   const workerBusyRef = useRef<boolean>(false);
 
   // ── Camera animation frame ID for cleanup ──
   const cameraRafRef = useRef<number | null>(null);
+
+  // ── Reusable pixel buffer for GC reduction ──
+  // Pre-allocated buffer dimensions — reset when canvas size changes.
+  const pixelBufferRef = useRef<{ buffer: ArrayBuffer; width: number; height: number } | null>(null);
+
+  /**
+   * Get or create a reusable pixel buffer matching the given dimensions.
+   * Avoids allocating a new ArrayBuffer every frame — only reallocates
+   * when the canvas dimensions change.
+   */
+  const getPixelBuffer = (width: number, height: number): Uint8ClampedArray => {
+    const byteLength = width * height * 4; // RGBA
+    const cached = pixelBufferRef.current;
+    if (cached && cached.width === width && cached.height === height && cached.buffer.byteLength === byteLength) {
+      return new Uint8ClampedArray(cached.buffer);
+    }
+    // Allocate new buffer (only on first frame or dimension change)
+    const buffer = new ArrayBuffer(byteLength);
+    pixelBufferRef.current = { buffer, width, height };
+    return new Uint8ClampedArray(buffer);
+  };
 
   const openImage = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -49,59 +117,83 @@ export function useImageProcessing() {
   };
 
   /**
-   * Process a single uploaded image — runs on the MAIN THREAD.
-   * No freeze risk since it only runs once per image upload.
+   * Process a single uploaded image — routes through the WORKER.
+   *
+   * Same worker path as camera mode — model lives only in the worker,
+   * so there's only one copy of the ONNX session in memory.
    */
-  const processImage = async (session: InferenceSession, config: Config) => {
-    if (!imgRef.current || !overlayRef.current || !inputCanvasRef.current || !session) return;
+  const processImage = (
+    config: Config,
+    workerRef: MutableRefObject<Worker | null>,
+    workerReadyRef: MutableRefObject<boolean>
+  ) => {
+    if (!imgRef.current || !overlayRef.current || !inputCanvasRef.current) return;
+
+    const worker = workerRef.current;
+    if (!worker || !workerReadyRef.current) {
+      console.error("[processImage] Worker not ready");
+      return;
+    }
 
     const naturalW = imgRef.current.naturalWidth;
     const naturalH = imgRef.current.naturalHeight;
 
-    // Draw image at native resolution onto inputCanvas so cv.imread
-    // always reads full-resolution pixels, regardless of CSS display size.
+    // Draw image at native resolution onto inputCanvas
     inputCanvasRef.current.width = naturalW;
     inputCanvasRef.current.height = naturalH;
     const inputCtx = inputCanvasRef.current.getContext("2d");
     if (!inputCtx) return;
     inputCtx.drawImage(imgRef.current, 0, 0, naturalW, naturalH);
 
-    // Set overlay canvas to native resolution
+    // Set overlay to native resolution
     overlayRef.current.width = naturalW;
     overlayRef.current.height = naturalH;
 
-    const [results, resultsInferenceTime] = await inference_pipeline(
-      inputCanvasRef.current,
-      session,
-      config,
-      overlayRef.current
+    // Get pixel data and send to worker
+    const imageData = inputCtx.getImageData(0, 0, naturalW, naturalH);
+
+    // One-shot listener for image result
+    const handleResult = (e: MessageEvent) => {
+      const msg = e.data;
+      if (msg.type !== "inference-result") return;
+      worker.removeEventListener("message", handleResult);
+
+      if (msg.error) {
+        console.error("[processImage] Worker error:", msg.error);
+        return;
+      }
+
+      drawWorkerResults(msg, overlayRef, maskSnapshotRef, setDetails, setInferenceTime);
+    };
+
+    worker.addEventListener("message", handleResult);
+
+    worker.postMessage(
+      {
+        type: "run-inference",
+        pixels: imageData.data,
+        srcWidth: naturalW,
+        srcHeight: naturalH,
+        overlayWidth: naturalW,
+        overlayHeight: naturalH,
+        config,
+      },
+      [imageData.data.buffer]
     );
-
-    // Snapshot the mask state so filter redraws can restore it
-    const ctx = overlayRef.current.getContext("2d");
-    if (ctx) {
-      maskSnapshotRef.current = ctx.getImageData(0, 0, overlayRef.current.width, overlayRef.current.height);
-    }
-
-    setDetails(results);
-    setInferenceTime(resultsInferenceTime);
-    await draw_bounding_boxes(results, overlayRef.current);
   };
 
   /**
    * Process real-time camera feed — uses the WEB WORKER.
    *
    * Architecture:
-   * - Main thread: requestAnimationFrame loop that captures video → sends pixels to worker
+   * - Main thread: requestAnimationFrame loop captures video → sends pixels to worker
    * - Worker: runs full inference pipeline (ONNX + OpenCV masks) off-thread
    * - Back to main thread: receives results → draws masks + bounding boxes
    *
-   * The requestAnimationFrame loop is now ~1ms (just drawImage + getImageData),
-   * so the video feed stays smooth at 60fps. Detections update at whatever speed
-   * the model runs (typically 10-30fps depending on hardware).
+   * GC optimization: pixel data is copied into a reusable buffer before
+   * sending to the worker. The buffer is only reallocated on dimension change.
    */
   const processCamera = (
-    _session: InferenceSession,
     config: Config,
     workerRef: MutableRefObject<Worker | null>,
     workerReadyRef: MutableRefObject<boolean>
@@ -120,94 +212,67 @@ export function useImageProcessing() {
 
     const worker = workerRef.current;
     if (!worker) {
-      console.error("[processCamera] No worker available, cannot start camera processing.");
+      console.error("[processCamera] No worker available");
       return;
     }
 
-    // ── Set up worker message handler for inference results ──
+    // ── Worker message handler for inference results ──
     const handleWorkerMessage = (e: MessageEvent) => {
       const msg = e.data;
       if (msg.type !== "inference-result") return;
 
-      workerBusyRef.current = false; // Release back-pressure
+      workerBusyRef.current = false;
 
       if (msg.error) {
         console.error("[processCamera] Worker inference error:", msg.error);
         return;
       }
 
-      // Draw masks on overlay canvas (main thread, fast putImageData)
-      if (msg.maskPixels && overlayRef.current) {
-        const ctx = overlayRef.current.getContext("2d");
-        if (ctx) {
-          const imgData = new ImageData(
-            new Uint8ClampedArray(msg.maskPixels),
-            msg.maskWidth,
-            msg.maskHeight
-          );
-          ctx.clearRect(0, 0, msg.maskWidth, msg.maskHeight);
-          ctx.putImageData(imgData, 0, 0);
-
-          // Snapshot mask state for filter redraws
-          maskSnapshotRef.current = ctx.getImageData(0, 0, msg.maskWidth, msg.maskHeight);
-        }
-      } else if (overlayRef.current) {
-        // No masks (no detections) — clear overlay
-        const ctx = overlayRef.current.getContext("2d");
-        if (ctx) {
-          ctx.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height);
-          maskSnapshotRef.current = null;
-        }
-      }
-
-      // Convert worker boxes to main-thread Box type (add dummy mask_weights for compatibility)
-      const boxes: Box[] = (msg.boxes as WorkerBox[]).map((b) => ({
-        ...b,
-        mask_weights: new Float32Array(0), // Not needed on main thread
-      }));
-
-      setDetails(boxes);
-      setInferenceTime(msg.inferenceTime);
-
-      // Draw bounding boxes on top of masks (fast canvas ops)
-      if (overlayRef.current) {
-        draw_bounding_boxes(boxes, overlayRef.current);
-      }
+      drawWorkerResults(msg, overlayRef, maskSnapshotRef, setDetails, setInferenceTime);
     };
 
     worker.addEventListener("message", handleWorkerMessage);
 
-    // ── requestAnimationFrame loop (super cheap — ~1ms per frame) ──
+    // ── requestAnimationFrame loop ──
     const processFrame = () => {
       if (!cameraRef.current || !cameraRef.current.srcObject) {
-        // Camera stopped — clean up
         worker.removeEventListener("message", handleWorkerMessage);
         return;
       }
 
-      // Draw video frame to input canvas (cheap, ~0.5ms)
+      // Draw video frame to input canvas (~0.5ms)
       inputCtx.drawImage(cameraRef.current, 0, 0, videoW, videoH);
 
-      // Only send to worker if it's NOT busy (back-pressure / frame skipping)
+      // Only send to worker if it's NOT busy (back-pressure)
       if (!workerBusyRef.current && workerReadyRef.current) {
         workerBusyRef.current = true;
 
-        // Get raw pixel data (~1ms for 640x480)
+        // Get pixel data from canvas
         const imageData = inputCtx.getImageData(0, 0, videoW, videoH);
 
-        // Send to worker with transferable buffer (zero-copy)
+        // Copy into reusable buffer to reduce GC pressure.
+        // The original imageData.data gets GC'd but the heavy pixel
+        // allocation is amortized via the reusable buffer.
+        const reusablePixels = getPixelBuffer(videoW, videoH);
+        reusablePixels.set(imageData.data);
+
+        // Send copy to worker — transfer the reusable buffer
         worker.postMessage(
           {
             type: "run-inference",
-            pixels: imageData.data,
+            pixels: reusablePixels,
             srcWidth: videoW,
             srcHeight: videoH,
             overlayWidth: videoW,
             overlayHeight: videoH,
             config,
           },
-          [imageData.data.buffer] // Transfer ownership — no copy!
+          [reusablePixels.buffer]
         );
+
+        // Reallocate the reusable buffer for the next frame
+        // (the previous one was transferred to the worker)
+        pixelBufferRef.current = null;
       }
 
       cameraRafRef.current = requestAnimationFrame(processFrame);
@@ -218,7 +283,6 @@ export function useImageProcessing() {
 
   /**
    * Stop the camera processing loop.
-   * Called when camera is toggled off or component unmounts.
    */
   const stopCameraProcessing = useCallback(() => {
     if (cameraRafRef.current !== null) {
@@ -230,14 +294,12 @@ export function useImageProcessing() {
 
   /**
    * Re-draw overlay: restore mask snapshot then draw filtered boxes.
-   * Call this when user selects/deselects a detection filter.
    */
   const redrawOverlay = useCallback(async (boxes: Box[], filterIndex: number | null) => {
     if (!overlayRef.current) return;
     const ctx = overlayRef.current.getContext("2d");
     if (!ctx) return;
 
-    // Restore the mask-only snapshot first
     if (maskSnapshotRef.current) {
       ctx.putImageData(maskSnapshotRef.current, 0, 0);
     } else {
