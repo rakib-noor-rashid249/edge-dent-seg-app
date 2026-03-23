@@ -15,7 +15,8 @@ export default function Home() {
     customModels,
     isModelLoaded,
     warmUpTime,
-    sessionRef,
+    workerRef,
+    workerReadyRef,
     modelStatus,
     device,
     setDevice,
@@ -46,6 +47,7 @@ export default function Home() {
     openImage,
     processImage,
     processCamera,
+    stopCameraProcessing,
     redrawOverlay,
     saveResult,
     toggleImage,
@@ -57,16 +59,12 @@ export default function Home() {
 
   const handleImageLoad = () => {
     setSelectedDetectionIdx(null);
-    if (sessionRef.current) {
-      processImage(sessionRef.current, config);
-    }
+    processImage(config, workerRef, workerReadyRef);
   };
 
   const handleCameraLoad = () => {
     setSelectedDetectionIdx(null);
-    if (sessionRef.current) {
-      processCamera(sessionRef.current, config);
-    }
+    processCamera(config, workerRef, workerReadyRef);
   };
 
   const handleCameraToggle = () => {
@@ -81,14 +79,15 @@ export default function Home() {
     redrawOverlay(details, idx);
   };
 
-  // Cleanup camera stream when component unmounts
+  // Cleanup camera stream and processing when component unmounts
   useEffect(() => {
     return () => {
+      stopCameraProcessing();
       if (cameraStream) {
         cameraStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [cameraStream]);
+  }, [cameraStream, stopCameraProcessing]);
 
   // Set camera stream to video element
   useEffect(() => {

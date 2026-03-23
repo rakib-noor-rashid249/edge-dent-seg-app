@@ -101,6 +101,75 @@ export function applyNMS(boxes: Box[], scores: number[], iou_threshold: number =
 }
 
 /**
+ * Extracts bounding box detections from raw YOLO output tensor data.
+ * Shared between main-thread and worker inference pipelines.
+ *
+ * @param predictionsData - Raw output0 tensor data.
+ * @param numPredictions - Number of predictions (output0.dims[2]).
+ * @param numScores - Number of class scores.
+ * @param numMaskWeights - Number of mask weight channels (typically 32).
+ * @param scoreThreshold - Minimum confidence score.
+ * @param xRatio - Scale factor: model space → overlay space (X).
+ * @param yRatio - Scale factor: model space → overlay space (Y).
+ * @returns Array of detection boxes with bbox, class_idx, score, and mask_weights.
+ */
+export function extractDetections(
+  predictionsData: Float32Array,
+  numPredictions: number,
+  numScores: number,
+  numMaskWeights: number,
+  scoreThreshold: number,
+  xRatio: number,
+  yRatio: number
+): Array<{ bbox: number[]; class_idx: number; score: number; mask_weights: Float32Array }> {
+  const NUM_BBOX_ATTRS = 4;
+  const bbox_data = predictionsData.subarray(0, numPredictions * NUM_BBOX_ATTRS);
+  const scores_data = predictionsData.subarray(
+    numPredictions * NUM_BBOX_ATTRS,
+    numPredictions * (NUM_BBOX_ATTRS + numScores)
+  );
+  const mask_weights_data = predictionsData.subarray(
+    numPredictions * (NUM_BBOX_ATTRS + numScores)
+  );
+
+  const results: Array<{ bbox: number[]; class_idx: number; score: number; mask_weights: Float32Array }> = [];
+
+  for (let i = 0; i < numPredictions; i++) {
+    let maxScore = 0;
+    let class_idx = -1;
+
+    for (let c = 0; c < numScores; c++) {
+      const score = scores_data[i + c * numPredictions];
+      if (score > maxScore) {
+        maxScore = score;
+        class_idx = c;
+      }
+    }
+    if (maxScore <= scoreThreshold) continue;
+
+    const cx = bbox_data[i];
+    const cy = bbox_data[i + numPredictions];
+    const bw_model = bbox_data[i + numPredictions * 2];
+    const bh_model = bbox_data[i + numPredictions * 3];
+
+    const w = bw_model * xRatio;
+    const h = bh_model * yRatio;
+    const x = cx * xRatio - 0.5 * w;
+    const y = cy * yRatio - 0.5 * h;
+
+    const mask_weights = new Float32Array(numMaskWeights);
+    for (let c = 0; c < numMaskWeights; c++) {
+      mask_weights[c] = mask_weights_data[i + c * numPredictions];
+    }
+
+    results.push({ bbox: [x, y, w, h], class_idx, score: maxScore, mask_weights });
+  }
+
+  return results;
+}
+
+
+/**
  * Ultralytics default color palette.
  *
  * Provides methods for converting hex color codes to RGBA and caching colors.
