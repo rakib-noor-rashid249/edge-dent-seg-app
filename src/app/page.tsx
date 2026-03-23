@@ -15,7 +15,6 @@ export default function Home() {
     customModels,
     isModelLoaded,
     warmUpTime,
-    sessionRef,
     workerRef,
     workerReadyRef,
     modelStatus,
@@ -60,17 +59,12 @@ export default function Home() {
 
   const handleImageLoad = () => {
     setSelectedDetectionIdx(null);
-    if (sessionRef.current) {
-      processImage(sessionRef.current, config);
-    }
+    processImage(config, workerRef, workerReadyRef);
   };
 
   const handleCameraLoad = () => {
     setSelectedDetectionIdx(null);
-    if (sessionRef.current) {
-      // Camera mode uses the worker for non-blocking inference
-      processCamera(sessionRef.current, config, workerRef, workerReadyRef);
-    }
+    processCamera(config, workerRef, workerReadyRef);
   };
 
   const handleCameraToggle = () => {
