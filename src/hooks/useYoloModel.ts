@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { InferenceSession } from "onnxruntime-web";
-import { model_loader } from "../utils/model_loader";
 import { CustomModel } from "../utils/types";
 import { isWebGPUSupported } from "../utils/gpu_check";
 import defaultClasses from "../utils/yolo_classes.json";
@@ -11,18 +9,22 @@ const input_shape = [1, 3, 640, 640];
 const iou_threshold = 0.25;
 const score_threshold = 0.55;
 
+/**
+ * Manages the YOLO model lifecycle via Web Worker.
+ *
+ * The model is loaded ONLY in the worker (not on main thread),
+ * keeping GPU/WASM memory usage to a single copy.
+ * Both image mode and camera mode route through the same worker.
+ */
 export function useYoloModel() {
   const [customModels, setCustomModels] = useState<CustomModel[]>([]);
   const [isModelLoaded, setIsModelLoaded] = useState<boolean>(false);
   const [warmUpTime, setWarmUpTime] = useState<string>("0");
   const [device, setDevice] = useState<string>(isWebGPUSupported() ? "webgpu" : "wasm");
   const [modelName, setModelName] = useState<string>("fft-11-n-best");
-
-  // Main-thread session (used for single image processing)
-  const sessionRef = useRef<InferenceSession | null>(null);
   const [modelStatus, setModelStatus] = useState<string>("Loading model...");
 
-  // Web Worker (used for real-time camera processing)
+  // Web Worker — sole owner of the ONNX session
   const workerRef = useRef<Worker | null>(null);
   const workerReadyRef = useRef<boolean>(false);
 
@@ -32,7 +34,6 @@ export function useYoloModel() {
     return customModel ? customModel.classes : defaultClasses;
   })();
 
-  // Config includes active classes so inference uses the right labels
   const config = { input_shape, iou_threshold, score_threshold, classes: activeClasses };
 
   // Track whether a load is already in-flight
@@ -40,7 +41,7 @@ export function useYoloModel() {
 
   /** Initialize the inference worker (call once on mount) */
   const initWorker = useCallback(() => {
-    if (workerRef.current) return; // Already initialized
+    if (workerRef.current) return;
 
     const worker = new Worker(
       new URL("../workers/inferenceWorker.ts", import.meta.url),
@@ -52,19 +53,19 @@ export function useYoloModel() {
       if (msg.type === "model-status") {
         if (msg.status === "Model loaded") {
           workerReadyRef.current = true;
-          // If main-thread model already loaded, keep its warmup time
-          // Otherwise use worker's warmup time
-          if (!isModelLoaded) {
-            setWarmUpTime(msg.warmUpTime);
-          }
+          setWarmUpTime(msg.warmUpTime);
+          setModelStatus("Model loaded");
+          setIsModelLoaded(true);
+          loadingRef.current = false;
         } else if (msg.status === "webgpu-failed") {
           console.warn("[useYoloModel] WebGPU failed in worker, falling back to WASM...");
-          setDevice("wasm");
+          loadingRef.current = false;
+          setDevice("wasm"); // triggers re-load via effect
         } else if (msg.status === "Model loading failed") {
           console.error("[useYoloModel] Worker model loading failed:", msg.error);
-        }
-        // Update model status for UI display
-        if (msg.status !== "webgpu-failed") {
+          setModelStatus("Model loading failed");
+          loadingRef.current = false;
+        } else {
           setModelStatus(msg.status);
         }
       }
@@ -72,12 +73,13 @@ export function useYoloModel() {
 
     worker.onerror = (error) => {
       console.error("[useYoloModel] Worker error:", error);
+      loadingRef.current = false;
     };
 
     workerRef.current = worker;
-  }, [isModelLoaded]);
+  }, []);
 
-  /** Load model on both main thread (for image mode) and worker (for camera) */
+  /** Load model in worker only */
   const loadModel = useCallback(async () => {
     if (loadingRef.current) {
       console.log("[useYoloModel] Load already in progress, skipping.");
@@ -94,7 +96,6 @@ export function useYoloModel() {
       ? customModel.url
       : `/models/${modelName}.onnx`;
 
-    // Load in worker (for camera mode)
     if (workerRef.current) {
       workerRef.current.postMessage({
         type: "load-model",
@@ -102,35 +103,8 @@ export function useYoloModel() {
         modelPath: model_path,
         config,
       });
-    }
-
-    // Load on main thread (for image mode)
-    try {
-      const start = performance.now();
-      const yolo_model = await model_loader(device, model_path, config);
-      const end = performance.now();
-
-      if (!yolo_model) {
-        setModelStatus("Model loading failed");
-        loadingRef.current = false;
-        return;
-      }
-
-      sessionRef.current = yolo_model;
-      setModelStatus("Model loaded");
-      setWarmUpTime((end - start).toFixed(2));
-      setIsModelLoaded(true);
-    } catch (error) {
-      console.error("[useYoloModel] Error loading model:", error);
-
-      if (device === "webgpu") {
-        console.warn("[useYoloModel] WebGPU failed, falling back to WASM...");
-        setModelStatus("Falling back to WASM...");
-        setDevice("wasm");
-      } else {
-        setModelStatus("Model loading failed");
-      }
-    } finally {
+    } else {
+      console.error("[useYoloModel] Worker not initialized");
       loadingRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -139,7 +113,6 @@ export function useYoloModel() {
   /** Add a custom model with its classes. Called from AddModelDialog. */
   const addCustomModel = useCallback((model: CustomModel) => {
     setCustomModels((prev) => [...prev, model]);
-    // Auto-select the newly added model
     setModelName(model.url);
   }, []);
 
@@ -147,7 +120,6 @@ export function useYoloModel() {
   useEffect(() => {
     initWorker();
     return () => {
-      // Terminate worker on unmount
       if (workerRef.current) {
         workerRef.current.postMessage({ type: "release" });
         workerRef.current.terminate();
@@ -165,7 +137,6 @@ export function useYoloModel() {
     customModels,
     isModelLoaded,
     warmUpTime,
-    sessionRef,
     workerRef,
     workerReadyRef,
     modelStatus,
