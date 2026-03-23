@@ -16,6 +16,8 @@ export default function Home() {
     isModelLoaded,
     warmUpTime,
     sessionRef,
+    workerRef,
+    workerReadyRef,
     modelStatus,
     device,
     setDevice,
@@ -46,6 +48,7 @@ export default function Home() {
     openImage,
     processImage,
     processCamera,
+    stopCameraProcessing,
     redrawOverlay,
     saveResult,
     toggleImage,
@@ -65,7 +68,8 @@ export default function Home() {
   const handleCameraLoad = () => {
     setSelectedDetectionIdx(null);
     if (sessionRef.current) {
-      processCamera(sessionRef.current, config);
+      // Camera mode uses the worker for non-blocking inference
+      processCamera(sessionRef.current, config, workerRef, workerReadyRef);
     }
   };
 
@@ -81,14 +85,15 @@ export default function Home() {
     redrawOverlay(details, idx);
   };
 
-  // Cleanup camera stream when component unmounts
+  // Cleanup camera stream and processing when component unmounts
   useEffect(() => {
     return () => {
+      stopCameraProcessing();
       if (cameraStream) {
         cameraStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [cameraStream]);
+  }, [cameraStream, stopCameraProcessing]);
 
   // Set camera stream to video element
   useEffect(() => {
