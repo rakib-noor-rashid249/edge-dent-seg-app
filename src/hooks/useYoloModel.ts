@@ -18,8 +18,13 @@ export function useYoloModel() {
   const [device, setDevice] = useState<string>(isWebGPUSupported() ? "webgpu" : "wasm");
   const [modelName, setModelName] = useState<string>("fft-11-n-best");
 
+  // Main-thread session (used for single image processing)
   const sessionRef = useRef<InferenceSession | null>(null);
   const [modelStatus, setModelStatus] = useState<string>("Loading model...");
+
+  // Web Worker (used for real-time camera processing)
+  const workerRef = useRef<Worker | null>(null);
+  const workerReadyRef = useRef<boolean>(false);
 
   // Active classes for the currently selected model
   const activeClasses = (() => {
@@ -33,6 +38,46 @@ export function useYoloModel() {
   // Track whether a load is already in-flight
   const loadingRef = useRef<boolean>(false);
 
+  /** Initialize the inference worker (call once on mount) */
+  const initWorker = useCallback(() => {
+    if (workerRef.current) return; // Already initialized
+
+    const worker = new Worker(
+      new URL("../workers/inferenceWorker.ts", import.meta.url),
+      { type: "module" }
+    );
+
+    worker.onmessage = (e: MessageEvent) => {
+      const msg = e.data;
+      if (msg.type === "model-status") {
+        if (msg.status === "Model loaded") {
+          workerReadyRef.current = true;
+          // If main-thread model already loaded, keep its warmup time
+          // Otherwise use worker's warmup time
+          if (!isModelLoaded) {
+            setWarmUpTime(msg.warmUpTime);
+          }
+        } else if (msg.status === "webgpu-failed") {
+          console.warn("[useYoloModel] WebGPU failed in worker, falling back to WASM...");
+          setDevice("wasm");
+        } else if (msg.status === "Model loading failed") {
+          console.error("[useYoloModel] Worker model loading failed:", msg.error);
+        }
+        // Update model status for UI display
+        if (msg.status !== "webgpu-failed") {
+          setModelStatus(msg.status);
+        }
+      }
+    };
+
+    worker.onerror = (error) => {
+      console.error("[useYoloModel] Worker error:", error);
+    };
+
+    workerRef.current = worker;
+  }, [isModelLoaded]);
+
+  /** Load model on both main thread (for image mode) and worker (for camera) */
   const loadModel = useCallback(async () => {
     if (loadingRef.current) {
       console.log("[useYoloModel] Load already in progress, skipping.");
@@ -42,12 +87,24 @@ export function useYoloModel() {
 
     setModelStatus("Loading model...");
     setIsModelLoaded(false);
+    workerReadyRef.current = false;
 
     const customModel = customModels.find((model) => model.url === modelName);
     const model_path = customModel
       ? customModel.url
       : `/models/${modelName}.onnx`;
 
+    // Load in worker (for camera mode)
+    if (workerRef.current) {
+      workerRef.current.postMessage({
+        type: "load-model",
+        device,
+        modelPath: model_path,
+        config,
+      });
+    }
+
+    // Load on main thread (for image mode)
     try {
       const start = performance.now();
       const yolo_model = await model_loader(device, model_path, config);
@@ -86,6 +143,20 @@ export function useYoloModel() {
     setModelName(model.url);
   }, []);
 
+  // Initialize worker on mount
+  useEffect(() => {
+    initWorker();
+    return () => {
+      // Terminate worker on unmount
+      if (workerRef.current) {
+        workerRef.current.postMessage({ type: "release" });
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
+    };
+  }, [initWorker]);
+
+  // Load model when device/modelName/customModels change
   useEffect(() => {
     loadModel();
   }, [loadModel]);
@@ -95,6 +166,8 @@ export function useYoloModel() {
     isModelLoaded,
     warmUpTime,
     sessionRef,
+    workerRef,
+    workerReadyRef,
     modelStatus,
     device,
     setDevice,
