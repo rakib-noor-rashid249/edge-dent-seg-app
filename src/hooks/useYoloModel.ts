@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { CustomModel } from "../utils/types";
 import { isWebGPUSupported } from "../utils/gpu_check";
 import defaultClasses from "../utils/yolo_classes.json";
+import { assetPath } from "../lib/utils";
 
 const input_shape = [1, 3, 640, 640];
 const iou_threshold = 0.25;
@@ -94,7 +95,7 @@ export function useYoloModel() {
     const customModel = customModels.find((model) => model.url === modelName);
     const model_path = customModel
       ? customModel.url
-      : `/models/${modelName}.onnx`;
+      : assetPath(`/models/${modelName}.onnx`);
 
     if (workerRef.current) {
       workerRef.current.postMessage({
