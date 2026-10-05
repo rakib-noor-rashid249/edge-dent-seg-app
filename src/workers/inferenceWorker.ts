@@ -78,6 +78,9 @@ ctx.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
 
       try {
         ort.env.logLevel = "error";
+        // Static hosts (GitHub Pages) do not supply cross-origin isolation headers;
+        // single-thread mode ensures WASM runs without SharedArrayBuffer errors.
+        ort.env.wasm.numThreads = 1;
 
         const start = performance.now();
         session = await ort.InferenceSession.create(msg.modelPath, {
